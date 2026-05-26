@@ -18,6 +18,7 @@
 - ✅ Offline-first (cache localStorage + coda sync `pendingOps` / `pendingScans`)
 - ✅ PWA service worker + manifest per asset statici cacheati offline
 - ✅ Notifiche locali per promemoria (Capacitor LocalNotifications + Web Notification API)
+- ✅ Diario pianta: foto periodiche + nota + timestamp, offline-first, cascade-delete
 - ✅ Capacitor + GitHub Action `build-android-apk.yml` per APK Android
 
 ## Architecture
