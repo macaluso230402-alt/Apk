@@ -4,25 +4,37 @@ import { ArrowLeft, Filter, Sun, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { recommendationsCache } from '../lib/offlineStorage';
 
 function RecommendationsPage() {
   const navigate = useNavigate();
-  const [recommendations, setRecommendations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState(() => recommendationsCache.get() || []);
+  const [loading, setLoading] = useState(!recommendationsCache.get());
   const [filters, setFilters] = useState({ pet_friendly: false, light: '' });
 
   const fetchRecommendations = useCallback(async () => {
-    setLoading(true);
+    setLoading(recommendations.length === 0);
     try {
       const response = await api.post('/api/recommendations', {
-        filters: filters.pet_friendly || filters.light ? filters : null
+        filters: filters.pet_friendly || filters.light ? filters : null,
       });
       setRecommendations(response.data.recommendations);
+      // Cache only the "no-filter" base list for offline use
+      if (!filters.pet_friendly && !filters.light) {
+        recommendationsCache.set(response.data.recommendations);
+      }
     } catch {
-      toast.error('Errore nel caricamento dei suggerimenti');
+      // Offline → apply filters on cached data
+      const cached = recommendationsCache.get() || [];
+      let filtered = cached;
+      if (filters.pet_friendly) filtered = filtered.filter((r) => r.pet_friendly);
+      if (filters.light) filtered = filtered.filter((r) => r.light?.includes(filters.light));
+      setRecommendations(filtered);
+      if (cached.length === 0) toast.error('Nessun dato disponibile offline');
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
   useEffect(() => { fetchRecommendations(); }, [fetchRecommendations]);

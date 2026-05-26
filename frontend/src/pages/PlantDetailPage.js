@@ -4,20 +4,24 @@ import { ArrowLeft, Droplets, Sun, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import PropagationSection from '../components/PropagationSection';
+import { plantsCache, pendingOps } from '../lib/offlineStorage';
 
 function PlantDetailPage() {
   const navigate = useNavigate();
   const { plantId } = useParams();
-  const [plant, setPlant] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [plant, setPlant] = useState(() => plantsCache.getById(plantId));
+  const [loading, setLoading] = useState(!plantsCache.getById(plantId));
 
   const fetchPlant = useCallback(async () => {
     try {
       const response = await api.get(`/api/plants/${plantId}`);
       setPlant(response.data);
+      plantsCache.upsert(response.data);
     } catch {
-      toast.error('Pianta non trovata');
-      navigate('/dashboard');
+      if (!plantsCache.getById(plantId)) {
+        toast.error('Pianta non trovata');
+        navigate('/dashboard');
+      }
     } finally {
       setLoading(false);
     }
@@ -26,21 +30,19 @@ function PlantDetailPage() {
   useEffect(() => { fetchPlant(); }, [fetchPlant]);
 
   const handleDelete = async () => {
+    plantsCache.remove(plantId);
     try {
       await api.delete(`/api/plants/${plantId}`);
       toast.success('Pianta eliminata');
-      navigate('/dashboard');
     } catch {
-      toast.error("Errore durante l'eliminazione");
+      pendingOps.add({ kind: 'delete-plant', payload: { plantId } });
+      toast.success('Pianta eliminata (sync offline)');
     }
+    navigate('/dashboard');
   };
 
   if (loading || !plant) {
-    return (
-      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
-        <p className="text-[#8A9F8E]">Caricamento...</p>
-      </div>
-    );
+    return <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center"><p className="text-[#8A9F8E]">Caricamento...</p></div>;
   }
 
   return (

@@ -2,22 +2,22 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Sparkles, Shield, Sun, Leaf } from 'lucide-react';
 import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { useProfile } from '../contexts/ProfileContext';
+import { potwCache } from '../lib/offlineStorage';
 import MobileBottomNav from './MobileBottomNav';
 
 export default function MobileHomePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [potw, setPotw] = useState(null);
+  const { profile } = useProfile();
+  const [potw, setPotw] = useState(() => potwCache.get());
 
   const fetchPotw = useCallback(async () => {
     try {
       const r = await api.get('/api/plant-of-the-week');
       setPotw(r.data);
-    } catch (err) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Failed to load plant of the week:', err);
-      }
+      potwCache.set(r.data);
+    } catch {
+      // Offline: keep cached
     }
   }, []);
 
@@ -31,7 +31,7 @@ export default function MobileHomePage() {
             <Leaf className="text-[#3E6A4B]" size={22} strokeWidth={1.5} />
             <span className="text-lg font-bold text-[#1A2E20]">PlantCare</span>
           </div>
-          <span className="text-xs text-[#8A9F8E]">Ciao {user?.name?.split(' ')[0] || ''}</span>
+          <span className="text-xs text-[#8A9F8E]">Ciao {profile?.name?.split(' ')[0] || ''}</span>
         </div>
       </header>
 

@@ -5,18 +5,20 @@ import { toast } from 'sonner';
 import api from '../lib/api';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
+import { plantsCache, pendingOps } from '../lib/offlineStorage';
 
 export default function MobileDashboardPage() {
   const navigate = useNavigate();
-  const [plants, setPlants] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [plants, setPlants] = useState(() => plantsCache.getAll());
+  const [loading, setLoading] = useState(plantsCache.getAll().length === 0);
 
   const fetchPlants = useCallback(async () => {
     try {
       const r = await api.get('/api/plants');
       setPlants(r.data);
+      plantsCache.setAll(r.data);
     } catch {
-      toast.error('Errore caricamento');
+      // Offline: keep cached
     } finally {
       setLoading(false);
     }
@@ -26,12 +28,14 @@ export default function MobileDashboardPage() {
 
   const handleDelete = async (id, e) => {
     e.stopPropagation();
+    plantsCache.remove(id);
+    setPlants(plantsCache.getAll());
     try {
       await api.delete(`/api/plants/${id}`);
       toast.success('Pianta eliminata');
-      fetchPlants();
     } catch {
-      toast.error("Errore eliminazione");
+      pendingOps.add({ kind: 'delete-plant', payload: { plantId: id } });
+      toast.success('Eliminata (sync offline)');
     }
   };
 

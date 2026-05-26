@@ -1,10 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
-import { AuthProvider } from './contexts/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import { ProfileProvider } from './contexts/ProfileContext';
 import { Toaster } from './components/ui/sonner';
 import useIsMobile from './hooks/useIsMobile';
+import OfflineBanner from './components/OfflineBanner';
 
 // Desktop pages
 import HomePage from './pages/HomePage';
@@ -26,16 +26,15 @@ import MobileRemindersPage from './mobile/MobileRemindersPage';
 
 function AppRoutes() {
   const isMobile = useIsMobile();
-
   return (
     <Routes>
-      <Route path="/" element={<ProtectedRoute>{isMobile ? <MobileHomePage /> : <HomePage />}</ProtectedRoute>} />
-      <Route path="/scanner" element={<ProtectedRoute>{isMobile ? <MobileScannerPage /> : <ScannerPage />}</ProtectedRoute>} />
-      <Route path="/dashboard" element={<ProtectedRoute>{isMobile ? <MobileDashboardPage /> : <DashboardPage />}</ProtectedRoute>} />
-      <Route path="/plant/:plantId" element={<ProtectedRoute>{isMobile ? <MobilePlantDetailPage /> : <PlantDetailPage />}</ProtectedRoute>} />
-      <Route path="/recommendations" element={<ProtectedRoute>{isMobile ? <MobileRecommendationsPage /> : <RecommendationsPage />}</ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute>{isMobile ? <MobileProfilePage /> : <ProfilePage />}</ProtectedRoute>} />
-      <Route path="/reminders" element={<ProtectedRoute>{isMobile ? <MobileRemindersPage /> : <RemindersPage />}</ProtectedRoute>} />
+      <Route path="/" element={isMobile ? <MobileHomePage /> : <HomePage />} />
+      <Route path="/scanner" element={isMobile ? <MobileScannerPage /> : <ScannerPage />} />
+      <Route path="/dashboard" element={isMobile ? <MobileDashboardPage /> : <DashboardPage />} />
+      <Route path="/plant/:plantId" element={isMobile ? <MobilePlantDetailPage /> : <PlantDetailPage />} />
+      <Route path="/recommendations" element={isMobile ? <MobileRecommendationsPage /> : <RecommendationsPage />} />
+      <Route path="/profile" element={isMobile ? <MobileProfilePage /> : <ProfilePage />} />
+      <Route path="/reminders" element={isMobile ? <MobileRemindersPage /> : <RemindersPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -43,14 +42,15 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
+    <ProfileProvider>
       <Router>
         <div className="App">
           <Toaster position="top-center" />
+          <OfflineBanner />
           <AppRoutes />
         </div>
       </Router>
-    </AuthProvider>
+    </ProfileProvider>
   );
 }
 

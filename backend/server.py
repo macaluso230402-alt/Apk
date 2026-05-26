@@ -1,17 +1,14 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 import os
 import motor.motor_asyncio
 import uuid
-import bcrypt
-import jwt
-import secrets
 import json
 import re
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
@@ -21,117 +18,25 @@ app = FastAPI()
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "test_database")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-JWT_SECRET = os.environ["JWT_SECRET"]
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_MINUTES = 15
-REFRESH_TOKEN_DAYS = 7
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "*")
 
-# CORS — explicit origins needed with credentials. Includes Capacitor Android WebView origins.
+# Single-user private app — no auth.
+DEFAULT_USER_ID = "default-user"
+
+# CORS — include Capacitor Android WebView origins
 default_origins = [FRONTEND_URL] if FRONTEND_URL != "*" else ["*"]
 capacitor_origins = ["https://localhost", "capacitor://localhost", "http://localhost"]
 allowed_origins = list({*default_origins, *capacitor_origins})
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
-
-
-# ================= AUTH HELPERS =================
-def hash_password(password: str) -> str:
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
-
-
-def create_access_token(user_id: str, email: str) -> str:
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_MINUTES),
-        "type": "access",
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-def create_refresh_token(user_id: str) -> str:
-    payload = {
-        "sub": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_DAYS),
-        "type": "refresh",
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
-    response.set_cookie(
-        key="access_token", value=access_token, httponly=True, secure=True,
-        samesite="none", max_age=ACCESS_TOKEN_MINUTES * 60, path="/",
-    )
-    response.set_cookie(
-        key="refresh_token", value=refresh_token, httponly=True, secure=True,
-        samesite="none", max_age=REFRESH_TOKEN_DAYS * 86400, path="/",
-    )
-
-
-async def get_current_user(request: Request) -> dict:
-    token = request.cookies.get("access_token")
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-    if not token:
-        raise HTTPException(status_code=401, detail="Non autenticato")
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        if payload.get("type") != "access":
-            raise HTTPException(status_code=401, detail="Token non valido")
-        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
-        if not user:
-            raise HTTPException(status_code=401, detail="Utente non trovato")
-        return user
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token scaduto")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token non valido")
-
-
-# Brute force protection
-async def check_login_lockout(identifier: str) -> None:
-    record = await db.login_attempts.find_one({"identifier": identifier})
-    if record and record.get("count", 0) >= 5:
-        locked_until = record.get("locked_until")
-        if locked_until:
-            # MongoDB returns naive UTC datetimes; normalize before comparing.
-            if locked_until.tzinfo is None:
-                locked_until = locked_until.replace(tzinfo=timezone.utc)
-            if locked_until > datetime.now(timezone.utc):
-                raise HTTPException(status_code=429, detail="Troppi tentativi. Riprova tra 15 minuti.")
-
-
-async def register_failed_login(identifier: str) -> None:
-    now = datetime.now(timezone.utc)
-    record = await db.login_attempts.find_one({"identifier": identifier})
-    count = (record.get("count", 0) if record else 0) + 1
-    locked_until = now + timedelta(minutes=15) if count >= 5 else None
-    await db.login_attempts.update_one(
-        {"identifier": identifier},
-        {"$set": {"count": count, "locked_until": locked_until, "updated_at": now}},
-        upsert=True,
-    )
-
-
-async def clear_login_attempts(identifier: str) -> None:
-    await db.login_attempts.delete_one({"identifier": identifier})
 
 
 # ================= MODELS =================
@@ -155,12 +60,9 @@ class CareSchedule(BaseModel):
 
 class UserProfile(BaseModel):
     id: str
-    email: str
     name: str
-    role: Optional[str] = "user"
     location: Optional[Location] = None
     home_situation: Optional[HomeSituation] = None
-    created_at: str
 
 
 class Plant(BaseModel):
@@ -191,17 +93,6 @@ class Reminder(BaseModel):
     enabled: bool
 
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=6)
-    name: str
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
 class IdentifyRequest(BaseModel):
     image_base64: str
     location: Optional[Location] = None
@@ -230,9 +121,10 @@ class SavePlantRequest(BaseModel):
     pet_friendly: Optional[bool] = None
     propagation: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
+    client_id: Optional[str] = None  # idempotency key from offline queue
 
 
-class UpdateUserRequest(BaseModel):
+class UpdateProfileRequest(BaseModel):
     name: Optional[str] = None
     location: Optional[Location] = None
     home_situation: Optional[HomeSituation] = None
@@ -255,30 +147,19 @@ class RecommendationRequest(BaseModel):
 # ================= STARTUP =================
 @app.on_event("startup")
 async def on_startup():
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("id", unique=True)
     await db.plants.create_index([("user_id", 1), ("id", 1)])
+    await db.plants.create_index([("user_id", 1), ("client_id", 1)])
     await db.reminders.create_index([("user_id", 1), ("id", 1)])
-    await db.login_attempts.create_index("identifier")
-    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
-
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@plantcare.com").lower()
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
-    existing = await db.users.find_one({"email": admin_email})
+    await db.profile.create_index("id", unique=True)
+    # Ensure single user profile exists
+    existing = await db.profile.find_one({"id": DEFAULT_USER_ID})
     if not existing:
-        await db.users.insert_one({
-            "id": str(uuid.uuid4()),
-            "email": admin_email,
-            "password_hash": hash_password(admin_password),
-            "name": "Admin",
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+        await db.profile.insert_one({
+            "id": DEFAULT_USER_ID,
+            "name": "Utente",
+            "location": None,
+            "home_situation": None,
         })
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password)}},
-        )
 
 
 # ================= HEALTH =================
@@ -287,82 +168,32 @@ async def health_check():
     return {"status": "healthy"}
 
 
-# ================= AUTH ENDPOINTS =================
-@app.post("/api/auth/register")
-async def register(request: RegisterRequest, response: Response):
-    raise HTTPException(status_code=403, detail="Registrazione disabilitata. App ad uso privato.")
+# ================= PROFILE =================
+@app.get("/api/profile", response_model=UserProfile)
+async def get_profile():
+    profile = await db.profile.find_one({"id": DEFAULT_USER_ID}, {"_id": 0})
+    if not profile:
+        profile = {"id": DEFAULT_USER_ID, "name": "Utente"}
+        await db.profile.insert_one(profile)
+    return UserProfile(**profile)
 
 
-@app.post("/api/auth/login")
-async def login(request: LoginRequest, response: Response, http_request: Request):
-    email = request.email.lower()
-    ip = http_request.client.host if http_request.client else "unknown"
-    identifier = f"{ip}:{email}"
-    await check_login_lockout(identifier)
-
-    user = await db.users.find_one({"email": email})
-    if not user or not verify_password(request.password, user["password_hash"]):
-        await register_failed_login(identifier)
-        raise HTTPException(status_code=401, detail="Credenziali non valide")
-
-    await clear_login_attempts(identifier)
-    access = create_access_token(user["id"], email)
-    refresh = create_refresh_token(user["id"])
-    set_auth_cookies(response, access, refresh)
-    user.pop("password_hash", None)
-    user.pop("_id", None)
-    return user
-
-
-@app.post("/api/auth/logout")
-async def logout(response: Response, current_user: dict = Depends(get_current_user)):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
-    return {"message": "Logout effettuato"}
-
-
-@app.get("/api/auth/me", response_model=UserProfile)
-async def get_me(current_user: dict = Depends(get_current_user)):
-    return UserProfile(**current_user)
-
-
-@app.post("/api/auth/refresh")
-async def refresh_token(request: Request, response: Response):
-    rtoken = request.cookies.get("refresh_token")
-    if not rtoken:
-        raise HTTPException(status_code=401, detail="No refresh token")
-    try:
-        payload = jwt.decode(rtoken, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        if payload.get("type") != "refresh":
-            raise HTTPException(status_code=401, detail="Invalid token type")
-        user = await db.users.find_one({"id": payload["sub"]})
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found")
-        access = create_access_token(user["id"], user["email"])
-        response.set_cookie(
-            key="access_token", value=access, httponly=True, secure=True,
-            samesite="none", max_age=ACCESS_TOKEN_MINUTES * 60, path="/",
-        )
-        return {"message": "Token refreshed"}
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-        raise HTTPException(status_code=401, detail="Refresh token invalid")
-
-
-@app.put("/api/auth/me", response_model=UserProfile)
-async def update_me(req: UpdateUserRequest, current_user: dict = Depends(get_current_user)):
-    update_data = {k: v for k, v in req.dict().items() if v is not None}
+@app.put("/api/profile", response_model=UserProfile)
+async def update_profile(req: UpdateProfileRequest):
+    update_data = {k: v.dict() if hasattr(v, "dict") else v for k, v in req.dict(exclude_unset=True).items() if v is not None}
     if update_data:
-        await db.users.update_one({"id": current_user["id"]}, {"$set": update_data})
-    user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "password_hash": 0})
-    return UserProfile(**user)
+        await db.profile.update_one({"id": DEFAULT_USER_ID}, {"$set": update_data}, upsert=True)
+    profile = await db.profile.find_one({"id": DEFAULT_USER_ID}, {"_id": 0})
+    return UserProfile(**profile)
 
 
 # ================= IDENTIFY =================
 @app.post("/api/identify", response_model=IdentifyResponse)
-async def identify_plant(req: IdentifyRequest, current_user: dict = Depends(get_current_user)):
+async def identify_plant(req: IdentifyRequest):
     try:
-        loc = req.location or (Location(**current_user.get("location")) if current_user.get("location") else None)
-        home = req.home_situation or (HomeSituation(**current_user.get("home_situation")) if current_user.get("home_situation") else None)
+        profile = await db.profile.find_one({"id": DEFAULT_USER_ID}, {"_id": 0}) or {}
+        loc = req.location or (Location(**profile.get("location")) if profile.get("location") else None)
+        home = req.home_situation or (HomeSituation(**profile.get("home_situation")) if profile.get("home_situation") else None)
 
         context_lines = []
         if loc and loc.city:
@@ -471,22 +302,20 @@ def _season_now() -> str:
     return "inverno"
 
 
-async def _maybe_create_propagation_reminder(user_id: str, plant: dict) -> None:
-    """Create a propagation reminder if the plant has propagation info and it's currently the best season."""
+async def _maybe_create_propagation_reminder(plant: dict) -> None:
     prop = plant.get("propagation")
     if not prop or not prop.get("best_season"):
         return
     best_season = prop["best_season"].lower()
-    current_season = _season_now()
-    if current_season not in best_season:
+    if _season_now() not in best_season:
         return
-    existing = await db.reminders.find_one({"user_id": user_id, "plant_id": plant["id"], "type": "propagation"})
+    existing = await db.reminders.find_one({"user_id": DEFAULT_USER_ID, "plant_id": plant["id"], "type": "propagation"})
     if existing:
         return
     await db.reminders.insert_one({
         "id": str(uuid.uuid4()),
         "plant_id": plant["id"],
-        "user_id": user_id,
+        "user_id": DEFAULT_USER_ID,
         "plant_name": plant["common_name"],
         "type": "propagation",
         "frequency": f"Stagione ideale: {prop['best_season']}",
@@ -497,11 +326,17 @@ async def _maybe_create_propagation_reminder(user_id: str, plant: dict) -> None:
 
 
 @app.post("/api/plants", response_model=Plant)
-async def save_plant(req: SavePlantRequest, current_user: dict = Depends(get_current_user)):
+async def save_plant(req: SavePlantRequest):
+    # Idempotency: if client_id supplied and already saved, return existing
+    if req.client_id:
+        existing = await db.plants.find_one({"user_id": DEFAULT_USER_ID, "client_id": req.client_id}, {"_id": 0})
+        if existing:
+            return Plant(**existing)
     plant_id = str(uuid.uuid4())
     plant_dict = {
         "id": plant_id,
-        "user_id": current_user["id"],
+        "user_id": DEFAULT_USER_ID,
+        "client_id": req.client_id,
         "common_name": req.common_name,
         "scientific_name": req.scientific_name,
         "description": req.description,
@@ -515,46 +350,46 @@ async def save_plant(req: SavePlantRequest, current_user: dict = Depends(get_cur
         "added_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.plants.insert_one(plant_dict)
-    await _maybe_create_propagation_reminder(current_user["id"], plant_dict)
+    await _maybe_create_propagation_reminder(plant_dict)
+    plant_dict.pop("client_id", None)
     return Plant(**plant_dict)
 
 
 @app.get("/api/plants", response_model=List[Plant])
-async def get_my_plants(current_user: dict = Depends(get_current_user)):
+async def get_my_plants():
     plants = []
-    async for plant in db.plants.find({"user_id": current_user["id"]}, {"_id": 0}):
+    async for plant in db.plants.find({"user_id": DEFAULT_USER_ID}, {"_id": 0, "client_id": 0}):
         plants.append(Plant(**plant))
     return plants
 
 
 @app.get("/api/plants/{plant_id}", response_model=Plant)
-async def get_plant(plant_id: str, current_user: dict = Depends(get_current_user)):
-    plant = await db.plants.find_one({"id": plant_id, "user_id": current_user["id"]}, {"_id": 0})
+async def get_plant(plant_id: str):
+    plant = await db.plants.find_one({"id": plant_id, "user_id": DEFAULT_USER_ID}, {"_id": 0, "client_id": 0})
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
     return Plant(**plant)
 
 
 @app.delete("/api/plants/{plant_id}")
-async def delete_plant(plant_id: str, current_user: dict = Depends(get_current_user)):
-    result = await db.plants.delete_one({"id": plant_id, "user_id": current_user["id"]})
+async def delete_plant(plant_id: str):
+    result = await db.plants.delete_one({"id": plant_id, "user_id": DEFAULT_USER_ID})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Plant not found")
-    # also delete related reminders
-    await db.reminders.delete_many({"plant_id": plant_id, "user_id": current_user["id"]})
+    await db.reminders.delete_many({"plant_id": plant_id, "user_id": DEFAULT_USER_ID})
     return {"message": "Plant deleted successfully"}
 
 
 # ================= REMINDERS =================
 @app.post("/api/reminders", response_model=Reminder)
-async def create_reminder(req: CreateReminderRequest, current_user: dict = Depends(get_current_user)):
-    plant = await db.plants.find_one({"id": req.plant_id, "user_id": current_user["id"]}, {"_id": 0})
+async def create_reminder(req: CreateReminderRequest):
+    plant = await db.plants.find_one({"id": req.plant_id, "user_id": DEFAULT_USER_ID}, {"_id": 0})
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
     reminder = {
         "id": str(uuid.uuid4()),
         "plant_id": req.plant_id,
-        "user_id": current_user["id"],
+        "user_id": DEFAULT_USER_ID,
         "plant_name": plant.get("common_name", "Unknown"),
         "type": req.type,
         "frequency": req.frequency,
@@ -567,17 +402,17 @@ async def create_reminder(req: CreateReminderRequest, current_user: dict = Depen
 
 
 @app.get("/api/reminders", response_model=List[Reminder])
-async def get_my_reminders(current_user: dict = Depends(get_current_user)):
+async def get_my_reminders():
     reminders = []
-    async for r in db.reminders.find({"user_id": current_user["id"]}, {"_id": 0}):
+    async for r in db.reminders.find({"user_id": DEFAULT_USER_ID}, {"_id": 0}):
         reminders.append(Reminder(**r))
     return reminders
 
 
 @app.put("/api/reminders/{reminder_id}")
-async def update_reminder(reminder_id: str, req: UpdateReminderRequest, current_user: dict = Depends(get_current_user)):
+async def update_reminder(reminder_id: str, req: UpdateReminderRequest):
     result = await db.reminders.update_one(
-        {"id": reminder_id, "user_id": current_user["id"]},
+        {"id": reminder_id, "user_id": DEFAULT_USER_ID},
         {"$set": {"enabled": req.enabled}},
     )
     if result.matched_count == 0:
@@ -586,8 +421,8 @@ async def update_reminder(reminder_id: str, req: UpdateReminderRequest, current_
 
 
 @app.delete("/api/reminders/{reminder_id}")
-async def delete_reminder(reminder_id: str, current_user: dict = Depends(get_current_user)):
-    result = await db.reminders.delete_one({"id": reminder_id, "user_id": current_user["id"]})
+async def delete_reminder(reminder_id: str):
+    result = await db.reminders.delete_one({"id": reminder_id, "user_id": DEFAULT_USER_ID})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Reminder not found")
     return {"message": "Reminder deleted"}
@@ -628,15 +463,12 @@ PLANT_CATALOG = [
 
 @app.get("/api/plant-of-the-week")
 async def plant_of_the_week(request: Request):
+    profile = await db.profile.find_one({"id": DEFAULT_USER_ID}, {"_id": 0}) or {}
     pool = PLANT_CATALOG
-    try:
-        user = await get_current_user(request)
-        if user.get("home_situation", {}) and user["home_situation"].get("pets"):
-            pet_safe = [p for p in PLANT_CATALOG if p["pet_friendly"]]
-            if pet_safe:
-                pool = pet_safe
-    except HTTPException:
-        pass
+    if profile.get("home_situation", {}) and profile["home_situation"].get("pets"):
+        pet_safe = [p for p in PLANT_CATALOG if p["pet_friendly"]]
+        if pet_safe:
+            pool = pet_safe
 
     now = datetime.now(timezone.utc)
     iso_year, iso_week, _ = now.isocalendar()
@@ -648,7 +480,7 @@ async def plant_of_the_week(request: Request):
 
 # ================= RECOMMENDATIONS =================
 @app.post("/api/recommendations")
-async def get_recommendations(req: RecommendationRequest, current_user: dict = Depends(get_current_user)):
+async def get_recommendations(req: RecommendationRequest):
     recs = [{**p, "difficulty": p["difficulty"]} for p in PLANT_CATALOG]
     filters = req.filters or {}
     if filters.get("pet_friendly"):

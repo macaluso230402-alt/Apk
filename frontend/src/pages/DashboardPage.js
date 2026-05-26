@@ -4,18 +4,20 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import PlantCard from '../components/PlantCard';
+import { plantsCache, pendingOps } from '../lib/offlineStorage';
 
 function DashboardPage() {
   const navigate = useNavigate();
-  const [plants, setPlants] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [plants, setPlants] = useState(() => plantsCache.getAll());
+  const [loading, setLoading] = useState(plantsCache.getAll().length === 0);
 
   const fetchPlants = useCallback(async () => {
     try {
       const response = await api.get('/api/plants');
       setPlants(response.data);
+      plantsCache.setAll(response.data);
     } catch {
-      toast.error('Errore nel caricamento delle piante');
+      // Offline: keep cached
     } finally {
       setLoading(false);
     }
@@ -24,12 +26,15 @@ function DashboardPage() {
   useEffect(() => { fetchPlants(); }, [fetchPlants]);
 
   const handleDelete = async (plantId) => {
+    // Optimistic local delete
+    plantsCache.remove(plantId);
+    setPlants(plantsCache.getAll());
     try {
       await api.delete(`/api/plants/${plantId}`);
       toast.success('Pianta eliminata');
-      fetchPlants();
     } catch {
-      toast.error("Errore durante l'eliminazione");
+      pendingOps.add({ kind: 'delete-plant', payload: { plantId } });
+      toast.success('Pianta eliminata (sync quando torni online)');
     }
   };
 

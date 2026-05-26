@@ -1,15 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Upload, ArrowLeft, Loader2 } from 'lucide-react';
+import { Camera, Upload, ArrowLeft, Loader2, CloudOff } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import CareGuide from '../components/CareGuide';
 import PropagationSection from '../components/PropagationSection';
+import useOnlineStatus from '../hooks/useOnlineStatus';
+import { plantsCache, pendingScans } from '../lib/offlineStorage';
 
 const SAVE_REDIRECT_DELAY_MS = 1500;
 
 function ScannerPage() {
   const navigate = useNavigate();
+  const isOnline = useOnlineStatus();
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -26,29 +29,39 @@ function ScannerPage() {
     }
   };
 
+  const readBase64 = () =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(selectedImage);
+    });
+
   const handleScan = async () => {
     if (!selectedImage) { toast.error("Seleziona un'immagine prima"); return; }
+
+    if (!isOnline) {
+      const base64Image = await readBase64();
+      const id = pendingScans.add({ image_base64: base64Image, location: null, home_situation: null });
+      toast.success(`Scansione in coda (offline). Verrà elaborata quando torni online.`);
+      setSelectedImage(null);
+      setImagePreview(null);
+      return;
+    }
+
     setLoading(true);
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Image = reader.result.split(',')[1];
-        try {
-          const response = await api.post('/api/identify', {
-            image_base64: base64Image,
-            location: null,
-            home_situation: null
-          });
-          setResult(response.data);
-          toast.success('Pianta identificata!');
-        } catch {
-          toast.error("Errore durante l'identificazione. Riprova.");
-        } finally {
-          setLoading(false);
-        }
-      };
-      reader.readAsDataURL(selectedImage);
+      const base64Image = await readBase64();
+      const response = await api.post('/api/identify', {
+        image_base64: base64Image,
+        location: null,
+        home_situation: null,
+      });
+      setResult(response.data);
+      toast.success('Pianta identificata!');
     } catch {
+      toast.error("Errore durante l'identificazione. Riprova.");
+    } finally {
       setLoading(false);
     }
   };
@@ -56,23 +69,21 @@ function ScannerPage() {
   const handleSavePlant = async () => {
     if (!result) return;
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Image = reader.result.split(',')[1];
-        await api.post('/api/plants', {
-          common_name: result.common_name,
-          scientific_name: result.scientific_name,
-          description: result.description,
-          image_base64: base64Image,
-          light_requirement: result.care_guide?.light || null,
-          water_requirement: result.care_guide?.water || null,
-          pet_friendly: result.pet_friendly,
-          propagation: result.propagation || null,
-        });
-        toast.success('Pianta salvata!');
-        setTimeout(() => navigate('/dashboard'), SAVE_REDIRECT_DELAY_MS);
+      const base64Image = await readBase64();
+      const payload = {
+        common_name: result.common_name,
+        scientific_name: result.scientific_name,
+        description: result.description,
+        image_base64: base64Image,
+        light_requirement: result.care_guide?.light || null,
+        water_requirement: result.care_guide?.water || null,
+        pet_friendly: result.pet_friendly,
+        propagation: result.propagation || null,
       };
-      reader.readAsDataURL(selectedImage);
+      const { data } = await api.post('/api/plants', payload);
+      plantsCache.upsert(data);
+      toast.success('Pianta salvata!');
+      setTimeout(() => navigate('/dashboard'), SAVE_REDIRECT_DELAY_MS);
     } catch {
       toast.error('Errore durante il salvataggio.');
     }
@@ -92,6 +103,14 @@ function ScannerPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {!result ? (
           <div className="space-y-8">
+            {!isOnline && (
+              <div className="plant-card p-4 flex items-center gap-3 bg-[#E8F1F2]" data-testid="offline-scanner-notice">
+                <CloudOff className="text-[#1B6CA8]" size={20} />
+                <p className="text-sm text-[#1B6CA8]">
+                  Sei offline. Le scansioni vengono accodate e processate quando torni online.
+                </p>
+              </div>
+            )}
             <div className="plant-card p-8 text-center cursor-pointer hover:border-[#3E6A4B] transition-colors" onClick={() => fileInputRef.current?.click()} data-testid="upload-area">
               {imagePreview ? (
                 <img src={imagePreview} alt="Preview" className="w-full max-h-96 object-contain rounded-lg mb-4" />
@@ -106,7 +125,7 @@ function ScannerPage() {
             </div>
             <div className="flex gap-4">
               <button onClick={handleScan} disabled={!selectedImage || loading} className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" data-testid="scan-button">
-                {loading ? (<><Loader2 className="animate-spin" size={20} /> Analizzando...</>) : (<><Camera size={20} /> Identifica Pianta</>)}
+                {loading ? (<><Loader2 className="animate-spin" size={20} /> Analizzando...</>) : (<><Camera size={20} /> {isOnline ? 'Identifica Pianta' : 'Metti in coda'}</>)}
               </button>
             </div>
           </div>

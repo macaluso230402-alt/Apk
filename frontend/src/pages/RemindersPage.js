@@ -3,18 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bell, Droplets, Sun, Scissors } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
+import { remindersCache, pendingOps } from '../lib/offlineStorage';
 
 function RemindersPage() {
   const navigate = useNavigate();
-  const [reminders, setReminders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [reminders, setReminders] = useState(() => remindersCache.getAll());
+  const [loading, setLoading] = useState(remindersCache.getAll().length === 0);
 
   const fetchReminders = useCallback(async () => {
     try {
       const response = await api.get('/api/reminders');
       setReminders(response.data);
+      remindersCache.setAll(response.data);
     } catch {
-      toast.error('Errore nel caricamento dei promemoria');
+      // Offline: keep cached
     } finally {
       setLoading(false);
     }
@@ -23,12 +25,13 @@ function RemindersPage() {
   useEffect(() => { fetchReminders(); }, [fetchReminders]);
 
   const toggleReminder = async (reminderId, enabled) => {
+    remindersCache.toggle(reminderId, !enabled);
+    setReminders(remindersCache.getAll());
     try {
       await api.put(`/api/reminders/${reminderId}`, { enabled: !enabled });
-      toast.success(enabled ? 'Promemoria disattivato' : 'Promemoria attivato');
-      fetchReminders();
     } catch {
-      toast.error("Errore nell'aggiornamento");
+      pendingOps.add({ kind: 'toggle-reminder', payload: { reminderId, enabled: !enabled } });
+      toast.message('Modifica salvata, sync quando torni online');
     }
   };
 
@@ -41,16 +44,7 @@ function RemindersPage() {
       default: return <Bell size={20} className="text-[#3E6A4B]" />;
     }
   };
-
-  const getTypeLabel = (type) => {
-    switch (type) {
-      case 'water': return 'Annaffiatura';
-      case 'fertilizer': return 'Fertilizzante';
-      case 'pruning': return 'Potatura';
-      case 'propagation': return 'Propagazione';
-      default: return type;
-    }
-  };
+  const getTypeLabel = (type) => ({ water: 'Annaffiatura', fertilizer: 'Fertilizzante', pruning: 'Potatura', propagation: 'Propagazione' }[type] || type);
 
   const renderContent = () => {
     if (loading) return <div className="text-center py-12"><p className="text-[#8A9F8E]">Caricamento...</p></div>;
@@ -59,7 +53,7 @@ function RemindersPage() {
         <div className="text-center py-20" data-testid="empty-reminders">
           <Bell size={64} className="mx-auto text-[#8A9F8E] mb-4" strokeWidth={1.5} />
           <h2 className="text-2xl font-bold text-[#1A2E20] mb-4">Nessun Promemoria</h2>
-          <p className="text-base text-[#5C7061] mb-8">Aggiungi piante che si propagano in questa stagione: creeremo automaticamente un promemoria.</p>
+          <p className="text-base text-[#5C7061] mb-8">Aggiungi piante che si propagano in questa stagione: creeremo un promemoria automatico.</p>
           <button onClick={() => navigate('/dashboard')} className="btn-primary" data-testid="go-to-plants">Vai alle Mie Piante</button>
         </div>
       );

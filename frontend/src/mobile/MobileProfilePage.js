@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Home } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth, formatApiErrorDetail } from '../contexts/AuthContext';
-import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
 
 const PET_OPTIONS = ['Cani', 'Gatti', 'Uccelli', 'Altri'];

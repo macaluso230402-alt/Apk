@@ -2,19 +2,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Leaf, Bell, BookOpen, Sparkles, Shield, Sun } from 'lucide-react';
 import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { useProfile } from '../contexts/ProfileContext';
+import { potwCache } from '../lib/offlineStorage';
 
 function HomePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [potw, setPotw] = useState(null);
+  const { profile } = useProfile();
+  const [potw, setPotw] = useState(() => potwCache.get());
 
   const fetchPotw = useCallback(async () => {
     try {
-      const res = await api.get('/api/plant-of-the-week');
-      setPotw(res.data);
+      const r = await api.get('/api/plant-of-the-week');
+      setPotw(r.data);
+      potwCache.set(r.data);
     } catch {
-      setPotw(null);
+      // Offline: keep cached
     }
   }, []);
 
@@ -43,7 +45,7 @@ function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="text-center lg:text-left">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-none mb-6 text-[#1A2E20]">
-                Ciao{user?.name ? `, ${user.name}` : ''} 🌿
+                Ciao{profile?.name ? `, ${profile.name}` : ''} 🌿
               </h1>
               <p className="text-base sm:text-lg text-[#5C7061] leading-relaxed mb-8">
                 Riconosci qualsiasi pianta con una foto e ricevi guide personalizzate di cura, manutenzione e propagazione.
@@ -107,21 +109,21 @@ function HomePage() {
                 <Camera className="text-[#3E6A4B]" size={24} strokeWidth={1.5} />
               </div>
               <h3 className="text-xl sm:text-2xl font-bold mb-3 text-[#1A2E20]">Riconoscimento AI</h3>
-              <p className="text-base text-[#5C7061] leading-relaxed">Identifica piante istantaneamente con Gemini Vision. Precisione garantita.</p>
+              <p className="text-base text-[#5C7061] leading-relaxed">Identifica piante istantaneamente con Gemini Vision. Funziona anche offline (in coda).</p>
             </div>
             <div className="plant-card p-6 card-hover" data-testid="feature-guides">
               <div className="w-12 h-12 rounded-full bg-[#FFF8E7] flex items-center justify-center mb-4">
                 <BookOpen className="text-[#B58500]" size={24} strokeWidth={1.5} />
               </div>
               <h3 className="text-xl sm:text-2xl font-bold mb-3 text-[#1A2E20]">Guide e Propagazione</h3>
-              <p className="text-base text-[#5C7061] leading-relaxed">Cura personalizzata + istruzioni di propagazione e talee per ogni pianta.</p>
+              <p className="text-base text-[#5C7061] leading-relaxed">Cura personalizzata + istruzioni di propagazione, consultabili offline.</p>
             </div>
             <div className="plant-card p-6 card-hover" data-testid="feature-reminders">
               <div className="w-12 h-12 rounded-full bg-[#E8F1F2] flex items-center justify-center mb-4">
                 <Bell className="text-[#1B6CA8]" size={24} strokeWidth={1.5} />
               </div>
               <h3 className="text-xl sm:text-2xl font-bold mb-3 text-[#1A2E20]">Promemoria Stagionali</h3>
-              <p className="text-base text-[#5C7061] leading-relaxed">Notifiche per annaffiatura e per la stagione ideale di propagazione.</p>
+              <p className="text-base text-[#5C7061] leading-relaxed">Sync automatica appena torni online.</p>
             </div>
           </div>
         </div>

@@ -2,51 +2,42 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Home } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth, formatApiErrorDetail } from '../contexts/AuthContext';
+import { useProfile, formatApiErrorDetail } from '../contexts/ProfileContext';
 
 const PET_OPTIONS = ['Cani', 'Gatti', 'Uccelli', 'Altri'];
 
 function ProfilePage() {
   const navigate = useNavigate();
-  const { user, updateProfile } = useAuth();
-  const [profile, setProfile] = useState({
-    name: '', city: '', pets: [], lighting: 'Media', space: 'Appartamento'
-  });
+  const { profile, updateProfile } = useProfile();
+  const [form, setForm] = useState({ name: '', city: '', pets: [], lighting: 'Media', space: 'Appartamento' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      setProfile({
-        name: user.name || '',
-        city: user.location?.city || '',
-        pets: user.home_situation?.pets || [],
-        lighting: user.home_situation?.lighting || 'Media',
-        space: user.home_situation?.space || 'Appartamento',
+    if (profile) {
+      setForm({
+        name: profile.name || '',
+        city: profile.location?.city || '',
+        pets: profile.home_situation?.pets || [],
+        lighting: profile.home_situation?.lighting || 'Media',
+        space: profile.home_situation?.space || 'Appartamento',
       });
     }
-  }, [user]);
+  }, [profile]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await updateProfile({
-        name: profile.name,
-        location: { city: profile.city },
-        home_situation: { pets: profile.pets, lighting: profile.lighting, space: profile.space }
+        name: form.name,
+        location: { city: form.city },
+        home_situation: { pets: form.pets, lighting: form.lighting, space: form.space },
       });
       toast.success('Profilo aggiornato!');
     } catch (err) {
-      toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Errore aggiornamento');
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Errore');
     } finally {
       setSaving(false);
     }
-  };
-
-  const togglePet = (pet) => {
-    setProfile((p) => ({
-      ...p,
-      pets: p.pets.includes(pet) ? p.pets.filter(x => x !== pet) : [...p.pets, pet]
-    }));
   };
 
   return (
@@ -64,15 +55,9 @@ function ProfilePage() {
         <div className="space-y-6">
           <div className="plant-card p-6">
             <h2 className="text-xl font-bold text-[#1A2E20] mb-4">Informazioni Personali</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Nome</label>
-                <input type="text" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className="input-field" data-testid="profile-name" />
-              </div>
-              <div>
-                <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Email</label>
-                <input type="email" value={user?.email || ''} disabled className="input-field opacity-60" data-testid="profile-email" />
-              </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Nome</label>
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" data-testid="profile-name" />
             </div>
           </div>
 
@@ -82,7 +67,7 @@ function ProfilePage() {
               <h2 className="text-xl font-bold text-[#1A2E20]">Posizione</h2>
             </div>
             <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Città</label>
-            <input type="text" value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} className="input-field" placeholder="es. Roma, Milano, Napoli" data-testid="profile-city" />
+            <input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="input-field" placeholder="es. Roma, Milano, Napoli" data-testid="profile-city" />
           </div>
 
           <div className="plant-card p-6">
@@ -96,7 +81,9 @@ function ProfilePage() {
                 <div className="space-y-2">
                   {PET_OPTIONS.map((pet) => (
                     <label key={pet} className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={profile.pets.includes(pet)} onChange={() => togglePet(pet)} className="w-4 h-4 text-[#3E6A4B] rounded" data-testid={`pet-${pet.toLowerCase()}`} />
+                      <input type="checkbox" checked={form.pets.includes(pet)} onChange={() => {
+                        setForm((p) => ({ ...p, pets: p.pets.includes(pet) ? p.pets.filter(x => x !== pet) : [...p.pets, pet] }));
+                      }} className="w-4 h-4 text-[#3E6A4B] rounded" data-testid={`pet-${pet.toLowerCase()}`} />
                       <span className="text-sm text-[#1A2E20]">{pet}</span>
                     </label>
                   ))}
@@ -104,7 +91,7 @@ function ProfilePage() {
               </div>
               <div>
                 <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Illuminazione</label>
-                <select value={profile.lighting} onChange={(e) => setProfile({ ...profile, lighting: e.target.value })} className="input-field" data-testid="profile-lighting">
+                <select value={form.lighting} onChange={(e) => setForm({ ...form, lighting: e.target.value })} className="input-field" data-testid="profile-lighting">
                   <option value="Bassa">Bassa</option>
                   <option value="Media">Media</option>
                   <option value="Alta">Alta</option>
@@ -112,7 +99,7 @@ function ProfilePage() {
               </div>
               <div>
                 <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Spazio</label>
-                <select value={profile.space} onChange={(e) => setProfile({ ...profile, space: e.target.value })} className="input-field" data-testid="profile-space">
+                <select value={form.space} onChange={(e) => setForm({ ...form, space: e.target.value })} className="input-field" data-testid="profile-space">
                   <option value="Appartamento">Appartamento</option>
                   <option value="Appartamento grande">Appartamento grande</option>
                   <option value="Casa">Casa</option>
