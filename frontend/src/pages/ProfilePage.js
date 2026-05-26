@@ -1,26 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Home } from 'lucide-react';
+import { ArrowLeft, MapPin, Home, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth, formatApiErrorDetail } from '../contexts/AuthContext';
+
+const PET_OPTIONS = ['Cani', 'Gatti', 'Uccelli', 'Altri'];
 
 function ProfilePage() {
   const navigate = useNavigate();
+  const { user, updateProfile, logout } = useAuth();
   const [profile, setProfile] = useState({
-    name: 'Utente Demo',
-    email: 'demo@plantcare.com',
-    city: 'Roma',
-    pets: [],
-    lighting: 'Media',
-    space: 'Appartamento'
+    name: '', city: '', pets: [], lighting: 'Media', space: 'Appartamento'
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    toast.success('Profilo aggiornato!');
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        name: user.name || '',
+        city: user.location?.city || '',
+        pets: user.home_situation?.pets || [],
+        lighting: user.home_situation?.lighting || 'Media',
+        space: user.home_situation?.space || 'Appartamento',
+      });
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateProfile({
+        name: profile.name,
+        location: { city: profile.city },
+        home_situation: { pets: profile.pets, lighting: profile.lighting, space: profile.space }
+      });
+      toast.success('Profilo aggiornato!');
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || 'Errore aggiornamento');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  const togglePet = (pet) => {
+    setProfile((p) => ({
+      ...p,
+      pets: p.pets.includes(pet) ? p.pets.filter(x => x !== pet) : [...p.pets, pet]
+    }));
   };
 
   return (
     <div className="min-h-screen bg-[#FDFBF7]">
-      {/* Header */}
       <header className="glassmorphism-header py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-4">
           <button onClick={() => navigate('/')} className="p-2 hover:bg-[#F3F5F1] rounded-full transition-colors" data-testid="back-button">
@@ -32,54 +67,29 @@ function ProfilePage() {
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="space-y-6">
-          {/* Basic Info */}
           <div className="plant-card p-6">
             <h2 className="text-xl font-bold text-[#1A2E20] mb-4">Informazioni Personali</h2>
             <div className="space-y-4">
               <div>
                 <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Nome</label>
-                <input
-                  type="text"
-                  value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                  className="input-field"
-                  data-testid="profile-name"
-                />
+                <input type="text" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className="input-field" data-testid="profile-name" />
               </div>
               <div>
                 <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Email</label>
-                <input
-                  type="email"
-                  value={profile.email}
-                  onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                  className="input-field"
-                  data-testid="profile-email"
-                />
+                <input type="email" value={user?.email || ''} disabled className="input-field opacity-60" data-testid="profile-email" />
               </div>
             </div>
           </div>
 
-          {/* Location */}
           <div className="plant-card p-6">
             <div className="flex items-center gap-2 mb-4">
               <MapPin size={20} className="text-[#3E6A4B]" />
               <h2 className="text-xl font-bold text-[#1A2E20]">Posizione</h2>
             </div>
-            <div>
-              <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Città</label>
-              <input
-                type="text"
-                value={profile.city}
-                onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                className="input-field"
-                placeholder="es. Roma, Milano, Napoli"
-                data-testid="profile-city"
-              />
-              <p className="text-xs text-[#8A9F8E] mt-2">Ci aiuta a fornire consigli climatici personalizzati</p>
-            </div>
+            <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Città</label>
+            <input type="text" value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} className="input-field" placeholder="es. Roma, Milano, Napoli" data-testid="profile-city" />
           </div>
 
-          {/* Home Situation */}
           <div className="plant-card p-6">
             <div className="flex items-center gap-2 mb-4">
               <Home size={20} className="text-[#3E6A4B]" />
@@ -89,48 +99,26 @@ function ProfilePage() {
               <div>
                 <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Animali Domestici</label>
                 <div className="space-y-2">
-                  {['Cani', 'Gatti', 'Uccelli', 'Altri'].map((pet) => (
+                  {PET_OPTIONS.map((pet) => (
                     <label key={pet} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={profile.pets.includes(pet)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setProfile({ ...profile, pets: [...profile.pets, pet] });
-                          } else {
-                            setProfile({ ...profile, pets: profile.pets.filter(p => p !== pet) });
-                          }
-                        }}
-                        className="w-4 h-4 text-[#3E6A4B] rounded"
-                        data-testid={`pet-${pet.toLowerCase()}`}
-                      />
+                      <input type="checkbox" checked={profile.pets.includes(pet)} onChange={() => togglePet(pet)} className="w-4 h-4 text-[#3E6A4B] rounded" data-testid={`pet-${pet.toLowerCase()}`} />
                       <span className="text-sm text-[#1A2E20]">{pet}</span>
                     </label>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Illuminazione Disponibile</label>
-                <select
-                  value={profile.lighting}
-                  onChange={(e) => setProfile({ ...profile, lighting: e.target.value })}
-                  className="input-field"
-                  data-testid="profile-lighting"
-                >
-                  <option value="Bassa">Bassa (poche finestre)</option>
-                  <option value="Media">Media (alcune finestre)</option>
-                  <option value="Alta">Alta (molte finestre, luce diretta)</option>
+                <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Illuminazione</label>
+                <select value={profile.lighting} onChange={(e) => setProfile({ ...profile, lighting: e.target.value })} className="input-field" data-testid="profile-lighting">
+                  <option value="Bassa">Bassa</option>
+                  <option value="Media">Media</option>
+                  <option value="Alta">Alta</option>
                 </select>
               </div>
               <div>
                 <label className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2 block">Spazio</label>
-                <select
-                  value={profile.space}
-                  onChange={(e) => setProfile({ ...profile, space: e.target.value })}
-                  className="input-field"
-                  data-testid="profile-space"
-                >
-                  <option value="Appartamento">Appartamento piccolo</option>
+                <select value={profile.space} onChange={(e) => setProfile({ ...profile, space: e.target.value })} className="input-field" data-testid="profile-space">
+                  <option value="Appartamento">Appartamento</option>
                   <option value="Appartamento grande">Appartamento grande</option>
                   <option value="Casa">Casa</option>
                   <option value="Con giardino">Casa con giardino</option>
@@ -139,8 +127,11 @@ function ProfilePage() {
             </div>
           </div>
 
-          <button onClick={handleSave} className="btn-primary w-full" data-testid="save-profile-button">
-            Salva Profilo
+          <button onClick={handleSave} disabled={saving} className="btn-primary w-full disabled:opacity-50" data-testid="save-profile-button">
+            {saving ? 'Salvataggio...' : 'Salva Profilo'}
+          </button>
+          <button onClick={handleLogout} className="btn-secondary w-full flex items-center justify-center gap-2 text-[#C45B3A]" data-testid="logout-button">
+            <LogOut size={18} /> Esci
           </button>
         </div>
       </div>

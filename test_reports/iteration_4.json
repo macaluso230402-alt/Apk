@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 4: full regression on JWT auth rewrite + mobile vs desktop. Backend: 25/25 pytest pass after fixing brute force lockout timezone bug. Frontend: desktop and mobile (390px) viewports both validated. ProtectedRoute redirects unauth -> /login; admin login sets httpOnly cookies; /dashboard, /recommendations, /reminders, /profile accessible after auth; MobileBottomNav visible only <768px with all 5 nav items (mob-nav-home/plants/scan/reminders/profile) routing correctly; mobile profile update + logout flow verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/login", "issue": "Lockout effectiveness depends on stable client IP. K8s ingress can rotate egress IPs across requests, which fragments the (ip+email) counter and weakens brute force protection in this preview env. Consider keying lockout by email only, or trusting X-Forwarded-For first IP."},
+      {"endpoint": "/api/plant-of-the-week", "issue": "Calls get_current_user(request) directly and swallows HTTPException — works but uses internal API rather than an optional dependency."},
+      {"endpoint": "/api/identify", "issue": "Catches broad Exception and returns 500 with raw exception text — should sanitize message and log instead of leaking internal errors."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mobile homepage", "issues": ["'Made with Emergent' badge (bottom-right, fixed) overlaps the right side of MobileBottomNav and can block tap on mob-nav-profile via real-finger taps. Tests passed using synthetic JS clicks. Recommend adding bottom padding to body or raising bottom-nav z-index above the badge."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Optional) Raise z-index of MobileBottomNav above Emergent badge or shift the badge for mobile viewport so the rightmost nav buttons are tappable in production.",
+    "(Optional) Replace Pydantic .dict() with .model_dump() (Pydantic v2 deprecation warning).",
+    "(Optional) Strengthen brute force key (email only, not ip+email) to be resilient to multi-IP ingress."
+  ],
+  "critical_code_review_comments": [
+    "BUG FIXED: check_login_lockout compared MongoDB-returned naive datetime with timezone.utc-aware datetime, raising TypeError -> 500 on 6th failed login instead of 429. Fixed by normalizing locked_until to UTC-aware.",
+    "server.py ~440 lines still mixes models, auth helpers, routes, LLM logic — split into routers/services for maintainability.",
+    "Pydantic v1 .dict() still used in /api/plants and elsewhere; migrate to .model_dump().",
+    "plant-of-the-week uses get_current_user(request) directly + try/except HTTPException — prefer an optional dependency.",
+    "/api/identify returns raw exception in HTTP 500 body; sanitize before returning to client."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (check_login_lockout: tz-aware compare fix)",
+    "/app/backend/tests/test_api.py (rewritten for JWT cookie auth; 25 tests)"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% (desktop + mobile flows)"},
+  "test_credentials": "admin@plantcare.com / admin123 (seeded). Test users created dynamically per run.",
+  "seed_data_creation": "Each pytest run creates ~3 ephemeral users (TEST_, locktest_) + 2 TEST_ plants + reminders. Plants/reminders cleaned up by their respective delete tests; user rows remain (per-user isolation is intentional).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression suite at /app/backend/tests/test_api.py covers auth, cookies, all protected endpoints, plants CRUD, propagation reminder auto-creation (season check), cascade delete, reminders CRUD, recommendations filters, plant-of-the-week public, logout, brute force lockout. Brute force test loops up to 20 attempts because preview ingress may rotate IPs. Mobile nav clicks may fail with real Playwright taps near bottom-right due to Emergent badge overlap; use JS .click() via page.evaluate as workaround.",
+  "rca of the issue": "Brute force lockout 500 RCA: motor returns BSON datetimes as offset-naive UTC; comparing with datetime.now(timezone.utc) raises TypeError. Mitigation: if locked_until.tzinfo is None: locked_until = locked_until.replace(tzinfo=timezone.utc) before comparing. Verified: 6th failed attempt now returns 429."
+}
