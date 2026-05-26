@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useProfile, formatApiErrorDetail } from '../contexts/ProfileContext';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
+import NotificationsToggle from '../components/NotificationsToggle';
 
 const PET_OPTIONS = ['Cani', 'Gatti', 'Uccelli', 'Altri'];
 
@@ -130,6 +131,8 @@ export default function MobileProfilePage() {
             </div>
           </div>
         </div>
+
+        <NotificationsToggle />
 
         <button
           onClick={handleSave}

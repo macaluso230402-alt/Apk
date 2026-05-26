@@ -1,5 +1,6 @@
 import api from './api';
-import { pendingOps, pendingScans, plantsCache } from './offlineStorage';
+import { pendingOps, pendingScans, plantsCache, remindersCache } from './offlineStorage';
+import { syncReminders } from './notifications';
 
 let syncing = false;
 const listeners = new Set();
@@ -85,6 +86,12 @@ export async function flushQueue() {
   } finally {
     syncing = false;
     notify();
+    // Refresh notifications: backend may have auto-created propagation reminders.
+    try {
+      const { data } = await api.get('/api/reminders');
+      remindersCache.setAll(data);
+      syncReminders(data);
+    } catch { /* offline */ }
   }
 }
 

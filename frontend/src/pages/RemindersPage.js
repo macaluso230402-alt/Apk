@@ -4,6 +4,7 @@ import { ArrowLeft, Bell, Droplets, Sun, Scissors } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import { remindersCache, pendingOps } from '../lib/offlineStorage';
+import { syncReminders, cancelReminder as cancelNotif } from '../lib/notifications';
 
 function RemindersPage() {
   const navigate = useNavigate();
@@ -15,8 +16,10 @@ function RemindersPage() {
       const response = await api.get('/api/reminders');
       setReminders(response.data);
       remindersCache.setAll(response.data);
+      syncReminders(response.data);
     } catch {
       // Offline: keep cached
+      syncReminders(remindersCache.getAll());
     } finally {
       setLoading(false);
     }
@@ -27,6 +30,8 @@ function RemindersPage() {
   const toggleReminder = async (reminderId, enabled) => {
     remindersCache.toggle(reminderId, !enabled);
     setReminders(remindersCache.getAll());
+    if (enabled) await cancelNotif(reminderId);
+    else syncReminders(remindersCache.getAll());
     try {
       await api.put(`/api/reminders/${reminderId}`, { enabled: !enabled });
     } catch {

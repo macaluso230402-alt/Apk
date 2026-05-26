@@ -6,6 +6,7 @@ import api from '../lib/api';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
 import { remindersCache, pendingOps } from '../lib/offlineStorage';
+import { syncReminders, cancelReminder as cancelNotif } from '../lib/notifications';
 
 export default function MobileRemindersPage() {
   const navigate = useNavigate();
@@ -17,8 +18,9 @@ export default function MobileRemindersPage() {
       const r = await api.get('/api/reminders');
       setReminders(r.data);
       remindersCache.setAll(r.data);
+      syncReminders(r.data);
     } catch {
-      // Offline: keep cached
+      syncReminders(remindersCache.getAll());
     } finally {
       setLoading(false);
     }
@@ -29,6 +31,8 @@ export default function MobileRemindersPage() {
   const toggle = async (id, enabled) => {
     remindersCache.toggle(id, !enabled);
     setReminders(remindersCache.getAll());
+    if (enabled) await cancelNotif(id);
+    else syncReminders(remindersCache.getAll());
     try {
       await api.put(`/api/reminders/${id}`, { enabled: !enabled });
     } catch {

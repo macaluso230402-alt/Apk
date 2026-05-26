@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Home } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProfile, formatApiErrorDetail } from '../contexts/ProfileContext';
+import NotificationsToggle from '../components/NotificationsToggle';
 
 const PET_OPTIONS = ['Cani', 'Gatti', 'Uccelli', 'Altri'];
 
@@ -108,6 +109,8 @@ function ProfilePage() {
               </div>
             </div>
           </div>
+
+          <NotificationsToggle />
 
           <button onClick={handleSave} disabled={saving} className="btn-primary w-full disabled:opacity-50" data-testid="save-profile-button">
             {saving ? 'Salvataggio...' : 'Salva Profilo'}

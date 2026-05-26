@@ -5,6 +5,9 @@ import { ProfileProvider } from './contexts/ProfileContext';
 import { Toaster } from './components/ui/sonner';
 import useIsMobile from './hooks/useIsMobile';
 import OfflineBanner from './components/OfflineBanner';
+import { syncReminders } from './lib/notifications';
+import { remindersCache } from './lib/offlineStorage';
+import api from './lib/api';
 
 // Desktop pages
 import HomePage from './pages/HomePage';
@@ -26,6 +29,20 @@ import MobileRemindersPage from './mobile/MobileRemindersPage';
 
 function AppRoutes() {
   const isMobile = useIsMobile();
+
+  React.useEffect(() => {
+    // Re-arm scheduled notifications on every app boot (web timers don't survive reload).
+    (async () => {
+      try {
+        const { data } = await api.get('/api/reminders');
+        remindersCache.setAll(data);
+        syncReminders(data);
+      } catch {
+        syncReminders(remindersCache.getAll());
+      }
+    })();
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={isMobile ? <MobileHomePage /> : <HomePage />} />
