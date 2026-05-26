@@ -65,6 +65,7 @@ class Plant(BaseModel):
     light_requirement: Optional[str] = None
     water_requirement: Optional[str] = None
     pet_friendly: Optional[bool] = None
+    propagation: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
     added_at: str
 
@@ -93,6 +94,7 @@ class IdentifyResponse(BaseModel):
     confidence: str
     pet_friendly: Optional[bool] = None
     suitable_for_user: Dict[str, Any]
+    propagation: Optional[Dict[str, Any]] = None
 
 class SavePlantRequest(BaseModel):
     user_id: str
@@ -104,6 +106,7 @@ class SavePlantRequest(BaseModel):
     light_requirement: Optional[str] = None
     water_requirement: Optional[str] = None
     pet_friendly: Optional[bool] = None
+    propagation: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
 
 class CreateUserRequest(BaseModel):
@@ -212,6 +215,14 @@ Rispondi SOLO con questo JSON (senza markdown):
     "temperature": "range ideale in °C",
     "tips": "2-3 consigli specifici per il contesto dell'utente"
   }},
+  "propagation": {{
+    "methods": ["talea in acqua", "talea in terra", "divisione", "seme", "ecc - solo metodi adatti a questa specie"],
+    "difficulty": "Facile|Media|Difficile",
+    "best_season": "primavera|estate|autunno|inverno o combinazione",
+    "rooting_time": "tempo medio per la radicazione (es. 2-3 settimane)",
+    "steps": ["passo 1 chiaro e breve", "passo 2", "passo 3", "passo 4", "passo 5"],
+    "tips": "1-2 consigli pratici specifici per questa pianta"
+  }},
   "suitability_score": 1-10,
   "suitability_reasons": ["motivo 1 breve", "motivo 2 breve", "motivo 3 breve"]
 }}"""
@@ -252,6 +263,7 @@ Rispondi SOLO con questo JSON (senza markdown):
             )
         
         care = data.get("care_guide", {}) or {}
+        propagation = data.get("propagation") or None
         return IdentifyResponse(
             common_name=data.get("common_name", "Sconosciuta"),
             scientific_name=data.get("scientific_name", ""),
@@ -265,6 +277,7 @@ Rispondi SOLO con questo JSON (senza markdown):
             },
             confidence=data.get("confidence", "Media"),
             pet_friendly=data.get("pet_friendly"),
+            propagation=propagation,
             suitable_for_user={
                 "score": data.get("suitability_score", 7),
                 "reasons": data.get("suitability_reasons", ["Pianta identificata"])
@@ -288,6 +301,7 @@ async def save_plant(request: SavePlantRequest):
         "light_requirement": request.light_requirement,
         "water_requirement": request.water_requirement,
         "pet_friendly": request.pet_friendly,
+        "propagation": request.propagation,
         "notes": request.notes,
         "added_at": datetime.now(timezone.utc).isoformat()
     }

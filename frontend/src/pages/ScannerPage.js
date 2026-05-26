@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Upload, ArrowLeft, Loader2 } from 'lucide-react';
+import { Camera, Upload, ArrowLeft, Loader2, Scissors } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -75,6 +75,7 @@ function ScannerPage() {
           light_requirement: result.care_guide?.light || null,
           water_requirement: result.care_guide?.water || null,
           pet_friendly: result.pet_friendly,
+          propagation: result.propagation || null,
           notes: null
         });
 
@@ -209,6 +210,69 @@ function ScannerPage() {
                         <li key={`${idx}-${reason}`} className="text-sm text-[#5C7061]">{reason}</li>
                       ))}
                     </ul>
+                  )}
+                </div>
+              )}
+
+              {result.propagation && (
+                <div className="mt-6" data-testid="propagation-section">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Scissors size={20} className="text-[#3E6A4B]" />
+                    <h3 className="text-lg font-bold text-[#1A2E20]">Propagazione e Talee</h3>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {result.propagation.difficulty && (
+                      <span className="text-xs px-3 py-1 rounded-full" style={{ background: '#E2E8E4', color: '#1A2E20' }} data-testid="propagation-difficulty">
+                        Difficoltà: {result.propagation.difficulty}
+                      </span>
+                    )}
+                    {result.propagation.best_season && (
+                      <span className="badge-light" data-testid="propagation-season">
+                        Stagione: {result.propagation.best_season}
+                      </span>
+                    )}
+                    {result.propagation.rooting_time && (
+                      <span className="badge-water" data-testid="propagation-time">
+                        Radicazione: {result.propagation.rooting_time}
+                      </span>
+                    )}
+                  </div>
+
+                  {result.propagation.methods && result.propagation.methods.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-2">Metodi consigliati</p>
+                      <div className="flex flex-wrap gap-2">
+                        {result.propagation.methods.map((method, idx) => (
+                          <span key={`${idx}-${method}`} className="badge-pet-friendly" data-testid={`propagation-method-${idx}`}>
+                            {method}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {result.propagation.steps && result.propagation.steps.length > 0 && (
+                    <div className="bg-[#F3F5F1] rounded-xl p-4 mb-4">
+                      <p className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-3">Passi da seguire</p>
+                      <ol className="space-y-2">
+                        {result.propagation.steps.map((step, idx) => (
+                          <li key={`${idx}-step`} className="flex gap-3 text-sm text-[#1A2E20]" data-testid={`propagation-step-${idx}`}>
+                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3E6A4B] text-white text-xs flex items-center justify-center font-bold">
+                              {idx + 1}
+                            </span>
+                            <span className="leading-relaxed">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+
+                  {result.propagation.tips && (
+                    <div className="bg-white border-l-4 border-[#E07A5F] rounded-r-xl p-4" data-testid="propagation-tips">
+                      <p className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-1">Consigli</p>
+                      <p className="text-sm text-[#1A2E20] italic">{result.propagation.tips}</p>
+                    </div>
                   )}
                 </div>
               )}
