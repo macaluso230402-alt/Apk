@@ -17,6 +17,7 @@
 - ✅ NO autenticazione — single-user, privato
 - ✅ Offline-first (cache localStorage + coda sync `pendingOps` / `pendingScans`)
 - ✅ PWA service worker + manifest per asset statici cacheati offline
+- ✅ Notifiche locali per promemoria (Capacitor LocalNotifications + Web Notification API)
 - ✅ Capacitor + GitHub Action `build-android-apk.yml` per APK Android
 
 ## Architecture
@@ -53,8 +54,9 @@
 - `POST /api/recommendations` (filtri: pet_friendly, light)
 
 ## CHANGELOG
-- **2026-02 (this session — fork iteration 5)**: Auth completamente rimosso (no /api/auth/*). Migrazione offline-first completata su tutte le mobile pages (`MobileProfilePage` riscritta su `ProfileContext`, `MobileScannerPage` con coda offline, `MobilePlantDetailPage`, `MobileRecommendationsPage`, `MobileRemindersPage` con cache + pendingOps). PWA service worker + manifest aggiunti. `/api/identify` ora gestisce gracefully gli errori Gemini. MobileBottomNav z-index alzato sopra il badge Emergent. File morti rimossi (`AuthContext.js`, `ProtectedRoute.js`). Test: 20/20 backend + 100% frontend (iteration_5.json).
-- **prior sessions**: setup iniziale FastAPI+React+Mongo, integrazione Gemini, mobile layout, Capacitor + workflow APK, JWT auth (poi rimosso).
+- **2026-02 (this session — iter 6)**: Aggiunto sistema **notifiche locali** unificato. `@capacitor/local-notifications@7` per Android nativo + Web Notification API per browser (lazy import, no Firebase). Una notifica per ogni promemoria al `next_due` esatto. Card "Notifiche" in `ProfilePage` + `MobileProfilePage` per richiedere permesso. Auto-schedule al boot dell'app, dopo flush queue, e su ogni toggle reminder. localStorage `pc_scheduled_notifs` + `pc_notif_permission`. Test: 100% frontend (Web Notification fires verified via setTimeout) + backend smoke (iteration_6.json).
+- **2026-02 (iter 5)**: Auth completamente rimosso. Migrazione offline-first completata su tutte le pagine mobile. PWA service worker + manifest. `/api/identify` graceful fallback. Z-index nav mobile fix. Test: 20/20 backend + 100% frontend.
+- **prior**: setup iniziale FastAPI+React+Mongo, integrazione Gemini, mobile layout, Capacitor + workflow APK, JWT auth (poi rimosso).
 
 ## Backlog
 ### P2
