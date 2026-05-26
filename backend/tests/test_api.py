@@ -117,7 +117,7 @@ def test_create_reminder(api):
     assert r.status_code == 200, r.text
     data = r.json()
     assert isinstance(data["id"], str) and len(data["id"]) >= 32
-    assert data["enabled"] is True
+    assert data["enabled"] == True
     created_ids["reminder"] = data["id"]
 
 
@@ -141,7 +141,7 @@ def test_update_reminder_with_json_body(api):
     g = api.get(f"{BASE_URL}/api/reminders/{created_ids['user']}", timeout=15)
     rm = next((x for x in g.json() if x["id"] == created_ids["reminder"]), None)
     assert rm is not None
-    assert rm["enabled"] is False
+    assert rm["enabled"] == False
 
 
 # ---------- Recommendations ----------

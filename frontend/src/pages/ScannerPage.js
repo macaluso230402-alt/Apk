@@ -5,6 +5,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const SAVE_REDIRECT_DELAY_MS = 1500;
 
 function ScannerPage() {
   const navigate = useNavigate();
@@ -49,8 +50,7 @@ function ScannerPage() {
         toast.success('Pianta identificata!');
       };
       reader.readAsDataURL(selectedImage);
-    } catch (error) {
-      console.error('Error identifying plant:', error);
+    } catch {
       toast.error('Errore durante l\'identificazione. Riprova.');
     } finally {
       setLoading(false);
@@ -79,11 +79,10 @@ function ScannerPage() {
         });
 
         toast.success('Pianta salvata!');
-        setTimeout(() => navigate('/dashboard'), 1500);
+        setTimeout(() => navigate('/dashboard'), SAVE_REDIRECT_DELAY_MS);
       };
       reader.readAsDataURL(selectedImage);
-    } catch (error) {
-      console.error('Error saving plant:', error);
+    } catch {
       toast.error('Errore durante il salvataggio.');
     }
   };
@@ -207,7 +206,7 @@ function ScannerPage() {
                   {result.suitable_for_user.reasons && (
                     <ul className="list-disc list-inside space-y-1">
                       {result.suitable_for_user.reasons.map((reason, idx) => (
-                        <li key={idx} className="text-sm text-[#5C7061]">{reason}</li>
+                        <li key={`${idx}-${reason}`} className="text-sm text-[#5C7061]">{reason}</li>
                       ))}
                     </ul>
                   )}

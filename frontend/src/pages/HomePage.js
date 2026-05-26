@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Leaf, Bell, BookOpen, Sparkles, Shield, Sun } from 'lucide-react';
 import axios from 'axios';
@@ -9,11 +9,18 @@ function HomePage() {
   const navigate = useNavigate();
   const [potw, setPotw] = useState(null);
 
-  useEffect(() => {
-    axios.get(`${API_URL}/api/plant-of-the-week`)
-      .then((res) => setPotw(res.data))
-      .catch(() => setPotw(null));
+  const fetchPotw = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/plant-of-the-week`);
+      setPotw(res.data);
+    } catch {
+      setPotw(null);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchPotw();
+  }, [fetchPotw]);
 
   return (
     <div className="min-h-screen">

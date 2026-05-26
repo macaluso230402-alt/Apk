@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Filter, Sun, Droplets, Shield } from 'lucide-react';
 import axios from 'axios';
@@ -16,11 +16,7 @@ function RecommendationsPage() {
     light: ''
   });
 
-  useEffect(() => {
-    fetchRecommendations();
-  }, [filters]);
-
-  const fetchRecommendations = async () => {
+  const fetchRecommendations = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.post(`${API_URL}/api/recommendations`, {
@@ -28,13 +24,16 @@ function RecommendationsPage() {
         filters: filters.pet_friendly || filters.light ? filters : null
       });
       setRecommendations(response.data.recommendations);
-    } catch (error) {
-      console.error('Error fetching recommendations:', error);
+    } catch {
       toast.error('Errore nel caricamento dei suggerimenti');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, [fetchRecommendations]);
 
   return (
     <div className="min-h-screen bg-[#FDFBF7]">
@@ -95,7 +94,7 @@ function RecommendationsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recommendations.map((plant, index) => (
               <div
-                key={index}
+                key={plant.name}
                 className="plant-card card-hover overflow-hidden"
                 data-testid={`recommendation-card-${index}`}
               >
