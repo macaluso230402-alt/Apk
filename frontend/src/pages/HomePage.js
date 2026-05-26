@@ -14,9 +14,18 @@ function HomePage() {
             <Leaf className="text-[#3E6A4B]" size={28} strokeWidth={1.5} />
             <h1 className="text-2xl font-bold text-[#1A2E20]">PlantCare</h1>
           </div>
-          <nav className="flex gap-4">
+          <nav className="flex gap-6">
+            <button onClick={() => navigate('/scanner')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-scanner">
+              Scanner
+            </button>
             <button onClick={() => navigate('/dashboard')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-dashboard">
               Le Mie Piante
+            </button>
+            <button onClick={() => navigate('/recommendations')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-recommendations">
+              Consigli
+            </button>
+            <button onClick={() => navigate('/reminders')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-reminders">
+              Promemoria
             </button>
             <button onClick={() => navigate('/profile')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-profile">
               Profilo

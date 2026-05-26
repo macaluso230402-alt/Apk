@@ -29,7 +29,10 @@ function RemindersPage() {
 
   const toggleReminder = async (reminderId, enabled) => {
     try {
-      await axios.put(`${API_URL}/api/reminders/${reminderId}?user_id=demo-user&enabled=${!enabled}`);
+      await axios.put(
+        `${API_URL}/api/reminders/${reminderId}?user_id=demo-user`,
+        { enabled: !enabled }
+      );
       toast.success(enabled ? 'Promemoria disattivato' : 'Promemoria attivato');
       fetchReminders();
     } catch (error) {
