@@ -14,7 +14,6 @@ import PlantDetailPage from './pages/PlantDetailPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RemindersPage from './pages/RemindersPage';
-import LoginPage from './pages/LoginPage';
 
 // Mobile pages
 import MobileHomePage from './mobile/MobileHomePage';
@@ -30,8 +29,6 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-
       <Route path="/" element={<ProtectedRoute>{isMobile ? <MobileHomePage /> : <HomePage />}</ProtectedRoute>} />
       <Route path="/scanner" element={<ProtectedRoute>{isMobile ? <MobileScannerPage /> : <ScannerPage />}</ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute>{isMobile ? <MobileDashboardPage /> : <DashboardPage />}</ProtectedRoute>} />

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ProtectedRoute({ children }) {
@@ -12,6 +11,20 @@ export default function ProtectedRoute({ children }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFBF7] px-6 text-center">
+        <p className="text-xl font-bold text-[#1A2E20] mb-2">Connessione impossibile</p>
+        <p className="text-sm text-[#5C7061] mb-6">Il backend non risponde. Riprova più tardi.</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn-primary"
+          data-testid="retry-button"
+        >
+          Riprova
+        </button>
+      </div>
+    );
+  }
   return children;
 }

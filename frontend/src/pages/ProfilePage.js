@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Home, LogOut } from 'lucide-react';
+import { ArrowLeft, MapPin, Home } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth, formatApiErrorDetail } from '../contexts/AuthContext';
 
@@ -8,7 +8,7 @@ const PET_OPTIONS = ['Cani', 'Gatti', 'Uccelli', 'Altri'];
 
 function ProfilePage() {
   const navigate = useNavigate();
-  const { user, updateProfile, logout } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [profile, setProfile] = useState({
     name: '', city: '', pets: [], lighting: 'Media', space: 'Appartamento'
   });
@@ -40,11 +40,6 @@ function ProfilePage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
   };
 
   const togglePet = (pet) => {
@@ -129,9 +124,6 @@ function ProfilePage() {
 
           <button onClick={handleSave} disabled={saving} className="btn-primary w-full disabled:opacity-50" data-testid="save-profile-button">
             {saving ? 'Salvataggio...' : 'Salva Profilo'}
-          </button>
-          <button onClick={handleLogout} className="btn-secondary w-full flex items-center justify-center gap-2 text-[#C45B3A]" data-testid="logout-button">
-            <LogOut size={18} /> Esci
           </button>
         </div>
       </div>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MapPin, Home, LogOut } from 'lucide-react';
+import { MapPin, Home } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth, formatApiErrorDetail } from '../contexts/AuthContext';
 import MobileHeader from './MobileHeader';
@@ -9,8 +8,7 @@ import MobileBottomNav from './MobileBottomNav';
 const PET_OPTIONS = ['Cani', 'Gatti', 'Uccelli', 'Altri'];
 
 export default function MobileProfilePage() {
-  const navigate = useNavigate();
-  const { user, updateProfile, logout } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [profile, setProfile] = useState({ name: '', city: '', pets: [], lighting: 'Media', space: 'Appartamento' });
   const [saving, setSaving] = useState(false);
 
@@ -44,11 +42,6 @@ export default function MobileProfilePage() {
 
   const togglePet = (pet) => {
     setProfile((p) => ({ ...p, pets: p.pets.includes(pet) ? p.pets.filter(x => x !== pet) : [...p.pets, pet] }));
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
   };
 
   return (
@@ -111,9 +104,6 @@ export default function MobileProfilePage() {
 
         <button onClick={handleSave} disabled={saving} className="btn-primary w-full py-4 disabled:opacity-50" data-testid="mob-save-profile">
           {saving ? 'Salvataggio...' : 'Salva'}
-        </button>
-        <button onClick={handleLogout} className="w-full py-4 rounded-full bg-white text-[#C45B3A] flex items-center justify-center gap-2 border border-[#E2E8E4]" data-testid="mob-logout">
-          <LogOut size={18} /> Esci
         </button>
       </div>
 

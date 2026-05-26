@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Leaf, Bell, BookOpen, Sparkles, Shield, Sun, LogOut } from 'lucide-react';
+import { Camera, Leaf, Bell, BookOpen, Sparkles, Shield, Sun } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 
 function HomePage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [potw, setPotw] = useState(null);
 
   const fetchPotw = useCallback(async () => {
@@ -34,11 +34,6 @@ function HomePage() {
             <button onClick={() => navigate('/recommendations')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-recommendations">Consigli</button>
             <button onClick={() => navigate('/reminders')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-reminders">Promemoria</button>
             <button onClick={() => navigate('/profile')} className="text-[#5C7061] hover:text-[#1A2E20] transition-colors" data-testid="nav-profile">Profilo</button>
-            {user && (
-              <button onClick={() => { logout().then(() => navigate('/login')); }} className="text-[#C45B3A] hover:opacity-80 transition flex items-center gap-1" data-testid="nav-logout">
-                <LogOut size={16} /> Esci
-              </button>
-            )}
           </nav>
         </div>
       </header>

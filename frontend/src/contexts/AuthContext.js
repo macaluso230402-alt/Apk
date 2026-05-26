@@ -3,20 +3,32 @@ import api from '../lib/api';
 
 const AuthContext = createContext(null);
 
+// Auto-login credentials (single-user private app).
+const AUTO_LOGIN_EMAIL = 'admin@plantcare.com';
+const AUTO_LOGIN_PASSWORD = 'admin123';
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null); // null = checking, false = anonymous, object = logged in
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
       const { data } = await api.get('/api/auth/me');
       setUser(data);
-    } catch (err) {
-      // Not authenticated or session expired — expected on first load.
-      if (err?.response && err.response.status !== 401 && process.env.NODE_ENV !== 'production') {
-        console.error('Auth refresh failed:', err);
+    } catch {
+      // Not authenticated → try silent auto-login
+      try {
+        const { data } = await api.post('/api/auth/login', {
+          email: AUTO_LOGIN_EMAIL,
+          password: AUTO_LOGIN_PASSWORD,
+        });
+        setUser(data);
+      } catch (loginErr) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Auto-login failed:', loginErr);
+        }
+        setUser(false);
       }
-      setUser(false);
     } finally {
       setLoading(false);
     }
@@ -26,29 +38,6 @@ export function AuthProvider({ children }) {
     refresh();
   }, [refresh]);
 
-  const login = useCallback(async (email, password) => {
-    const { data } = await api.post('/api/auth/login', { email, password });
-    setUser(data);
-    return data;
-  }, []);
-
-  const register = useCallback(async (email, password, name) => {
-    const { data } = await api.post('/api/auth/register', { email, password, name });
-    setUser(data);
-    return data;
-  }, []);
-
-  const logout = useCallback(async () => {
-    try {
-      await api.post('/api/auth/logout');
-    } catch (err) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Logout request failed:', err);
-      }
-    }
-    setUser(false);
-  }, []);
-
   const updateProfile = useCallback(async (payload) => {
     const { data } = await api.put('/api/auth/me', payload);
     setUser(data);
@@ -56,8 +45,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, updateProfile, refresh }),
-    [user, loading, login, register, logout, updateProfile, refresh]
+    () => ({ user, loading, updateProfile, refresh }),
+    [user, loading, updateProfile, refresh]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
