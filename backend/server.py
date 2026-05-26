@@ -25,7 +25,7 @@ app.add_middleware(
 
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "test_database")
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -173,103 +173,101 @@ async def identify_plant(request: IdentifyRequest):
         import json
         import re
         
-        # First pass: Gemini for quick identification
-        gemini_chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"gemini-{uuid.uuid4()}",
-            system_message="You are a botanical expert. Identify plants from images and provide accurate information. Always respond with valid JSON only, no markdown formatting."
+        # Build personalization context
+        context_lines = []
+        if request.location and request.location.city:
+            context_lines.append(f"- Posizione utente: {request.location.city}")
+        if request.home_situation:
+            if request.home_situation.pets:
+                context_lines.append(f"- Animali domestici in casa: {', '.join(request.home_situation.pets)}")
+            if request.home_situation.lighting:
+                context_lines.append(f"- Illuminazione disponibile: {request.home_situation.lighting}")
+            if request.home_situation.space:
+                context_lines.append(f"- Spazio disponibile: {request.home_situation.space}")
+        context_block = "\n".join(context_lines) if context_lines else "(nessun contesto utente fornito)"
+        
+        # Single Gemini call for identification + personalized care guide
+        chat = LlmChat(
+            api_key=GEMINI_API_KEY,
+            session_id=f"identify-{uuid.uuid4()}",
+            system_message="Sei un esperto botanico specializzato in piante da interno. Identifica le piante dalle foto e crea guide di cura personalizzate. Rispondi SEMPRE solo con un oggetto JSON valido in italiano, senza markdown, senza ```json, senza testo extra."
         ).with_model("gemini", "gemini-2.5-flash")
         
         image_content = ImageContent(image_base64=request.image_base64)
         
-        gemini_message = UserMessage(
-            text="Identifica questa pianta. Rispondi SOLO con un oggetto JSON valido (senza ```json o altro testo) con queste chiavi: common_name (string), scientific_name (string), description (string), indoor_suitable (boolean), confidence (string: Alta/Media/Bassa).",
-            file_contents=[image_content]
-        )
+        prompt = f"""Analizza l'immagine e identifica la pianta. Considera questo contesto utente:
+{context_block}
+
+Rispondi SOLO con questo JSON (senza markdown):
+{{
+  "common_name": "nome comune in italiano",
+  "scientific_name": "nome scientifico latino",
+  "description": "breve descrizione (2-3 frasi)",
+  "confidence": "Alta|Media|Bassa",
+  "pet_friendly": true|false,
+  "care_guide": {{
+    "water": "frequenza e modo di annaffiare",
+    "light": "esigenze di luce",
+    "fertilizer": "frequenza fertilizzazione",
+    "temperature": "range ideale in °C",
+    "tips": "2-3 consigli specifici per il contesto dell'utente"
+  }},
+  "suitability_score": 1-10,
+  "suitability_reasons": ["motivo 1 breve", "motivo 2 breve", "motivo 3 breve"]
+}}"""
         
-        gemini_response = await gemini_chat.send_message(gemini_message)
+        message = UserMessage(text=prompt, file_contents=[image_content])
+        response = await chat.send_message(message)
         
-        # Parse Gemini JSON
-        gemini_data = {}
+        # Parse JSON response
+        data = {}
         try:
-            # Extract JSON from response
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', gemini_response, re.DOTALL)
-            if json_match:
-                gemini_data = json.loads(json_match.group())
-            else:
-                gemini_data = json.loads(gemini_response)
-        except:
-            gemini_data = {
-                "common_name": "Pianta non identificata",
-                "scientific_name": "",
-                "description": gemini_response[:200] if gemini_response else "Impossibile identificare",
-                "indoor_suitable": True,
-                "confidence": "Bassa"
-            }
+            # Try direct parse
+            data = json.loads(response.strip())
+        except (json.JSONDecodeError, AttributeError):
+            try:
+                # Extract JSON block with greedy match
+                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group())
+            except (json.JSONDecodeError, AttributeError):
+                pass
         
-        # Second pass: Claude for detailed care guide
-        claude_chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"claude-{uuid.uuid4()}",
-            system_message="You are an expert botanist. Provide detailed plant care guides. Always respond with valid JSON only, no markdown."
-        ).with_model("anthropic", "claude-sonnet-4-5")
+        if not data or "common_name" not in data:
+            # Graceful fallback
+            return IdentifyResponse(
+                common_name="Pianta non identificata",
+                scientific_name="",
+                description="Non è stato possibile identificare la pianta dall'immagine. Prova con una foto più chiara o ben illuminata.",
+                care_guide={
+                    "water": "Annaffiare quando il terreno è asciutto al tatto",
+                    "light": "Luce indiretta brillante",
+                    "fertilizer": "Ogni 2-4 settimane in primavera/estate",
+                    "temperature": "18-24°C",
+                    "tips": "Monitorare la pianta regolarmente"
+                },
+                confidence="Bassa",
+                pet_friendly=None,
+                suitable_for_user={"score": 5, "reasons": ["Identificazione non riuscita"]}
+            )
         
-        # Build context for Claude
-        context = f"Pianta: {gemini_data.get('common_name', 'sconosciuta')} ({gemini_data.get('scientific_name', '')})\n"
-        if request.location and request.location.city:
-            context += f"Posizione: {request.location.city}\n"
-        if request.home_situation:
-            if request.home_situation.pets:
-                context += f"Animali: {', '.join(request.home_situation.pets)}\n"
-            if request.home_situation.lighting:
-                context += f"Luce disponibile: {request.home_situation.lighting}\n"
-            if request.home_situation.space:
-                context += f"Spazio: {request.home_situation.space}\n"
-        
-        claude_message = UserMessage(
-            text=f"{context}\nCrea guida di cura personalizzata. Rispondi SOLO con JSON valido (senza ```json) con chiavi: water (string), light (string), fertilizer (string), temperature (string), tips (string), pet_friendly (boolean), suitability_score (number 1-10), suitability_reasons (array di 2-3 stringhe brevi).",
-            file_contents=[image_content]
-        )
-        
-        claude_response = await claude_chat.send_message(claude_message)
-        
-        # Parse Claude JSON
-        claude_data = {}
-        try:
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', claude_response, re.DOTALL)
-            if json_match:
-                claude_data = json.loads(json_match.group())
-            else:
-                claude_data = json.loads(claude_response)
-        except:
-            claude_data = {
-                "water": "Annaffiare quando il terreno è asciutto al tatto",
-                "light": "Luce indiretta brillante",
-                "fertilizer": "Ogni 2-4 settimane in primavera/estate",
-                "temperature": "18-24°C",
-                "tips": "Monitorare umidità del terreno regolarmente",
-                "pet_friendly": False,
-                "suitability_score": 7,
-                "suitability_reasons": ["Adatta per ambienti interni", "Manutenzione moderata"]
-            }
-        
-        # Build final response
+        care = data.get("care_guide", {}) or {}
         return IdentifyResponse(
-            common_name=gemini_data.get("common_name", "Pianta sconosciuta"),
-            scientific_name=gemini_data.get("scientific_name", ""),
-            description=gemini_data.get("description", "Nessuna descrizione disponibile"),
+            common_name=data.get("common_name", "Sconosciuta"),
+            scientific_name=data.get("scientific_name", ""),
+            description=data.get("description", ""),
             care_guide={
-                "water": claude_data.get("water", "Informazione non disponibile"),
-                "light": claude_data.get("light", "Informazione non disponibile"),
-                "fertilizer": claude_data.get("fertilizer", "Non specificato"),
-                "temperature": claude_data.get("temperature", "Non specificato"),
-                "tips": claude_data.get("tips", "")
+                "water": care.get("water", "Informazione non disponibile"),
+                "light": care.get("light", "Informazione non disponibile"),
+                "fertilizer": care.get("fertilizer", "Non specificato"),
+                "temperature": care.get("temperature", "Non specificato"),
+                "tips": care.get("tips", "")
             },
-            confidence=gemini_data.get("confidence", "Media"),
-            pet_friendly=claude_data.get("pet_friendly", None),
+            confidence=data.get("confidence", "Media"),
+            pet_friendly=data.get("pet_friendly"),
             suitable_for_user={
-                "score": claude_data.get("suitability_score", 7),
-                "reasons": claude_data.get("suitability_reasons", ["Pianta identificata"])
+                "score": data.get("suitability_score", 7),
+                "reasons": data.get("suitability_reasons", ["Pianta identificata"])
             }
         )
     except Exception as e:
@@ -285,7 +283,7 @@ async def save_plant(request: SavePlantRequest):
         "common_name": request.common_name,
         "scientific_name": request.scientific_name,
         "description": request.description,
-        "image_url": f"data:image/jpeg;base64,{request.image_base64[:100]}" if request.image_base64 else None,
+        "image_url": f"data:image/jpeg;base64,{request.image_base64}" if request.image_base64 else None,
         "care_schedule": request.care_schedule.dict() if request.care_schedule else None,
         "light_requirement": request.light_requirement,
         "water_requirement": request.water_requirement,

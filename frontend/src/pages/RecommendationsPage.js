@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Filter, Sun, Droplets, Shield } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -65,17 +66,23 @@ function RecommendationsPage() {
               />
               <span className="text-sm text-[#1A2E20]">Solo Pet-Friendly</span>
             </label>
-            <select
-              value={filters.light}
-              onChange={(e) => setFilters({ ...filters, light: e.target.value })}
-              className="input-field py-2 w-48"
-              data-testid="filter-light"
+            <Select
+              value={filters.light || 'all'}
+              onValueChange={(val) => setFilters({ ...filters, light: val === 'all' ? '' : val })}
             >
-              <option value="">Tutte le luci</option>
-              <option value="Bassa">Luce Bassa</option>
-              <option value="Media">Luce Media</option>
-              <option value="Alta">Luce Alta</option>
-            </select>
+              <SelectTrigger
+                className="w-48 bg-[#F3F5F1] border-none rounded-xl py-3 px-4 text-[#1A2E20] focus:ring-2 focus:ring-[#3E6A4B]/30"
+                data-testid="filter-light"
+              >
+                <SelectValue placeholder="Tutte le luci" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" data-testid="filter-light-all">Tutte le luci</SelectItem>
+                <SelectItem value="Bassa" data-testid="filter-light-bassa">Luce Bassa</SelectItem>
+                <SelectItem value="Media" data-testid="filter-light-media">Luce Media</SelectItem>
+                <SelectItem value="Alta" data-testid="filter-light-alta">Luce Alta</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
