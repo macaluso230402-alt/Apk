@@ -41,6 +41,8 @@ jobs:
       - name: Create production .env
         run: |
           echo "REACT_APP_BACKEND_URL=${{ secrets.REACT_APP_BACKEND_URL }}" > .env
+          echo "REACT_APP_AUTO_LOGIN_EMAIL=${{ secrets.REACT_APP_AUTO_LOGIN_EMAIL }}" >> .env
+          echo "REACT_APP_AUTO_LOGIN_PASSWORD=${{ secrets.REACT_APP_AUTO_LOGIN_PASSWORD }}" >> .env
           echo "WDS_SOCKET_PORT=443" >> .env
 
       - name: Build React app

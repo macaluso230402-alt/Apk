@@ -3,9 +3,9 @@ import api from '../lib/api';
 
 const AuthContext = createContext(null);
 
-// Auto-login credentials (single-user private app).
-const AUTO_LOGIN_EMAIL = 'admin@plantcare.com';
-const AUTO_LOGIN_PASSWORD = 'admin123';
+// Auto-login credentials for this private app (configurable via env at build time).
+const AUTO_LOGIN_EMAIL = process.env.REACT_APP_AUTO_LOGIN_EMAIL;
+const AUTO_LOGIN_PASSWORD = process.env.REACT_APP_AUTO_LOGIN_PASSWORD;
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
