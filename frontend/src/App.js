@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -15,7 +15,6 @@ import RecommendationsPage from './pages/RecommendationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RemindersPage from './pages/RemindersPage';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 
 // Mobile pages
 import MobileHomePage from './mobile/MobileHomePage';
@@ -32,7 +31,6 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
 
       <Route path="/" element={<ProtectedRoute>{isMobile ? <MobileHomePage /> : <HomePage />}</ProtectedRoute>} />
       <Route path="/scanner" element={<ProtectedRoute>{isMobile ? <MobileScannerPage /> : <ScannerPage />}</ProtectedRoute>} />
@@ -41,6 +39,7 @@ function AppRoutes() {
       <Route path="/recommendations" element={<ProtectedRoute>{isMobile ? <MobileRecommendationsPage /> : <RecommendationsPage />}</ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute>{isMobile ? <MobileProfilePage /> : <ProfilePage />}</ProtectedRoute>} />
       <Route path="/reminders" element={<ProtectedRoute>{isMobile ? <MobileRemindersPage /> : <RemindersPage />}</ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

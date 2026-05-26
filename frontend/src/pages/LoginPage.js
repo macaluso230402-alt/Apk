@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Leaf, Mail, Lock } from 'lucide-react';
-import { useAuth, formatApiErrorDetail } from '../contexts/AuthContext';
-
-export default function LoginPage() {
+import { useAuth, formatApiErrorDetail } from '../contexts/AuthContext';export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
@@ -79,10 +77,7 @@ export default function LoginPage() {
             </button>
           </form>
           <p className="text-sm text-[#5C7061] text-center mt-6">
-            Non hai un account?{' '}
-            <Link to="/register" className="text-[#3E6A4B] font-medium hover:underline" data-testid="link-register">
-              Registrati
-            </Link>
+            App ad uso privato
           </p>
         </div>
       </div>

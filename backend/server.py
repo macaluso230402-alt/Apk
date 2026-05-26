@@ -288,28 +288,7 @@ async def health_check():
 # ================= AUTH ENDPOINTS =================
 @app.post("/api/auth/register")
 async def register(request: RegisterRequest, response: Response):
-    email = request.email.lower()
-    existing = await db.users.find_one({"email": email})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email già registrata")
-    user_id = str(uuid.uuid4())
-    user_doc = {
-        "id": user_id,
-        "email": email,
-        "password_hash": hash_password(request.password),
-        "name": request.name,
-        "role": "user",
-        "location": None,
-        "home_situation": None,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.users.insert_one(user_doc)
-    access = create_access_token(user_id, email)
-    refresh = create_refresh_token(user_id)
-    set_auth_cookies(response, access, refresh)
-    user_doc.pop("password_hash", None)
-    user_doc.pop("_id", None)
-    return user_doc
+    raise HTTPException(status_code=403, detail="Registrazione disabilitata. App ad uso privato.")
 
 
 @app.post("/api/auth/login")
