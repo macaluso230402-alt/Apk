@@ -6,20 +6,24 @@ import api from '../lib/api';
 import PropagationSection from '../components/PropagationSection';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
+import { plantsCache, pendingOps } from '../lib/offlineStorage';
 
 export default function MobilePlantDetailPage() {
   const navigate = useNavigate();
   const { plantId } = useParams();
-  const [plant, setPlant] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [plant, setPlant] = useState(() => plantsCache.getById(plantId));
+  const [loading, setLoading] = useState(!plantsCache.getById(plantId));
 
   const fetchPlant = useCallback(async () => {
     try {
       const r = await api.get(`/api/plants/${plantId}`);
       setPlant(r.data);
+      plantsCache.upsert(r.data);
     } catch {
-      toast.error('Pianta non trovata');
-      navigate('/dashboard');
+      if (!plantsCache.getById(plantId)) {
+        toast.error('Pianta non trovata');
+        navigate('/dashboard');
+      }
     } finally {
       setLoading(false);
     }
@@ -28,13 +32,15 @@ export default function MobilePlantDetailPage() {
   useEffect(() => { fetchPlant(); }, [fetchPlant]);
 
   const handleDelete = async () => {
+    plantsCache.remove(plantId);
     try {
       await api.delete(`/api/plants/${plantId}`);
       toast.success('Pianta eliminata');
-      navigate('/dashboard');
     } catch {
-      toast.error('Errore');
+      pendingOps.add({ kind: 'delete-plant', payload: { plantId } });
+      toast.success('Eliminata (sync offline)');
     }
+    navigate('/dashboard');
   };
 
   if (loading || !plant) {

@@ -5,18 +5,20 @@ import { toast } from 'sonner';
 import api from '../lib/api';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
+import { remindersCache, pendingOps } from '../lib/offlineStorage';
 
 export default function MobileRemindersPage() {
   const navigate = useNavigate();
-  const [reminders, setReminders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [reminders, setReminders] = useState(() => remindersCache.getAll());
+  const [loading, setLoading] = useState(remindersCache.getAll().length === 0);
 
   const fetchReminders = useCallback(async () => {
     try {
       const r = await api.get('/api/reminders');
       setReminders(r.data);
+      remindersCache.setAll(r.data);
     } catch {
-      toast.error('Errore caricamento');
+      // Offline: keep cached
     } finally {
       setLoading(false);
     }
@@ -25,11 +27,13 @@ export default function MobileRemindersPage() {
   useEffect(() => { fetchReminders(); }, [fetchReminders]);
 
   const toggle = async (id, enabled) => {
+    remindersCache.toggle(id, !enabled);
+    setReminders(remindersCache.getAll());
     try {
       await api.put(`/api/reminders/${id}`, { enabled: !enabled });
-      fetchReminders();
     } catch {
-      toast.error('Errore');
+      pendingOps.add({ kind: 'toggle-reminder', payload: { reminderId: id, enabled: !enabled } });
+      toast.message('Modifica salvata, sync offline');
     }
   };
 

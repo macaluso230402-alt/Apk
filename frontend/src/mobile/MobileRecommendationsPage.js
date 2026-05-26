@@ -4,22 +4,34 @@ import { toast } from 'sonner';
 import api from '../lib/api';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
+import { recommendationsCache } from '../lib/offlineStorage';
 
 export default function MobileRecommendationsPage() {
-  const [recs, setRecs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [recs, setRecs] = useState(() => recommendationsCache.get() || []);
+  const [loading, setLoading] = useState(!recommendationsCache.get());
   const [filters, setFilters] = useState({ pet_friendly: false, light: '' });
 
   const fetchRecs = useCallback(async () => {
-    setLoading(true);
+    setLoading(recs.length === 0);
     try {
-      const r = await api.post('/api/recommendations', { filters: filters.pet_friendly || filters.light ? filters : null });
+      const r = await api.post('/api/recommendations', {
+        filters: filters.pet_friendly || filters.light ? filters : null,
+      });
       setRecs(r.data.recommendations);
+      if (!filters.pet_friendly && !filters.light) {
+        recommendationsCache.set(r.data.recommendations);
+      }
     } catch {
-      toast.error('Errore caricamento');
+      const cached = recommendationsCache.get() || [];
+      let filtered = cached;
+      if (filters.pet_friendly) filtered = filtered.filter((r) => r.pet_friendly);
+      if (filters.light) filtered = filtered.filter((r) => r.light?.includes(filters.light));
+      setRecs(filtered);
+      if (cached.length === 0) toast.error('Nessun dato disponibile offline');
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
   useEffect(() => { fetchRecs(); }, [fetchRecs]);

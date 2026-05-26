@@ -1,0 +1,19 @@
+{
+  "short_name": "PlantCare",
+  "name": "PlantCare — Riconosci e cura le tue piante",
+  "description": "Identifica piante con l'AI e ricevi guide di cura personalizzate.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FDFBF7",
+  "theme_color": "#3E6A4B",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

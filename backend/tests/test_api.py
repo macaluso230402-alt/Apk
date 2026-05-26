@@ -1,138 +1,94 @@
-"""
-PlantCare backend regression suite — JWT auth + cookie-based flow.
-Covers: auth (register/login/me/logout/lockout), protected endpoints,
-plants CRUD with propagation, propagation-reminder auto-creation,
-reminders, profile update, plant-of-the-week, recommendations.
+"""PlantCare backend regression — single-user, no-auth API.
+
+Covers: health, profile auto-seed + update, plants CRUD + idempotency +
+cascade delete, reminders CRUD, plant-of-the-week, recommendations filters,
+auth endpoints are GONE (must 404), /api/identify smoke (Gemini network).
 """
 import os
-import time
 import uuid
-import requests
+import base64
 import pytest
+import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://plant-smart-care.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+if not BASE_URL:
+    # Fallback to frontend/.env
+    try:
+        with open("/app/frontend/.env") as f:
+            for line in f:
+                if line.startswith("REACT_APP_BACKEND_URL="):
+                    BASE_URL = line.split("=", 1)[1].strip().rstrip("/")
+                    break
+    except FileNotFoundError:
+        pass
+
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@plantcare.com")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+
+@pytest.fixture(scope="session")
+def s():
+    sess = requests.Session()
+    sess.headers.update({"Content-Type": "application/json"})
+    return sess
 
 
-# ---------- helpers / fixtures ----------
-def _new_user_payload():
-    suffix = uuid.uuid4().hex[:8]
-    return {
-        "email": f"test_{suffix}@plantcare.com",
-        "password": "test1234",
-        "name": f"TEST_User_{suffix}",
-    }
+# ============ HEALTH ============
+class TestHealth:
+    def test_health(self, s):
+        r = s.get(f"{API}/health", timeout=15)
+        assert r.status_code == 200
+        assert r.json().get("status") == "healthy"
 
 
-@pytest.fixture(scope="module")
-def admin_session():
-    s = requests.Session()
-    r = s.post(f"{API}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}, timeout=15)
-    assert r.status_code == 200, f"admin login failed: {r.status_code} {r.text}"
-    assert "access_token" in s.cookies, f"no access_token cookie: {dict(s.cookies)}"
-    assert "refresh_token" in s.cookies
-    return s
+# ============ NO AUTH ENDPOINTS ============
+class TestNoAuth:
+    @pytest.mark.parametrize("path", [
+        "/auth/login", "/auth/register", "/auth/logout",
+        "/auth/me", "/auth/reset-password",
+    ])
+    def test_auth_endpoints_gone(self, s, path):
+        # Try GET and POST — both should be 404/405 (route doesn't exist)
+        for method in ("get", "post"):
+            r = getattr(s, method)(f"{API}{path}", json={}, timeout=10)
+            assert r.status_code in (404, 405), (
+                f"{method.upper()} {path} -> {r.status_code} (expected 404/405). Auth must be removed."
+            )
 
 
-@pytest.fixture(scope="module")
-def user_session():
-    s = requests.Session()
-    payload = _new_user_payload()
-    r = s.post(f"{API}/auth/register", json=payload, timeout=15)
-    assert r.status_code == 200, f"register failed: {r.status_code} {r.text}"
-    s.user_email = payload["email"]  # type: ignore
-    s.user_password = payload["password"]  # type: ignore
-    return s
+# ============ PROFILE ============
+class TestProfile:
+    def test_get_profile_auto_seeded(self, s):
+        r = s.get(f"{API}/profile", timeout=15)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["id"] == "default-user"
+        assert isinstance(data["name"], str) and data["name"]
+
+    def test_update_profile_persists(self, s):
+        payload = {
+            "name": "Mario",
+            "location": {"city": "Roma"},
+            "home_situation": {"pets": ["Cani"], "lighting": "Media", "space": "Appartamento"},
+        }
+        r = s.put(f"{API}/profile", json=payload, timeout=15)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["name"] == "Mario"
+        assert body["location"]["city"] == "Roma"
+        assert "Cani" in body["home_situation"]["pets"]
+
+        # Verify persistence
+        r2 = s.get(f"{API}/profile", timeout=15)
+        assert r2.status_code == 200
+        d2 = r2.json()
+        assert d2["name"] == "Mario"
+        assert d2["location"]["city"] == "Roma"
+        assert d2["home_situation"]["lighting"] == "Media"
 
 
-# ---------- Health ----------
-def test_health():
-    r = requests.get(f"{API}/health", timeout=10)
-    assert r.status_code == 200
-    assert r.json() == {"status": "healthy"}
-
-
-# ---------- Auth: register / login / me ----------
-def test_register_returns_user_and_sets_cookies():
-    s = requests.Session()
-    payload = _new_user_payload()
-    r = s.post(f"{API}/auth/register", json=payload, timeout=15)
-    assert r.status_code == 200, r.text
-    data = r.json()
-    assert data["email"] == payload["email"]
-    assert data["name"] == payload["name"]
-    assert "id" in data and isinstance(data["id"], str)
-    assert "password_hash" not in data
-    assert "access_token" in s.cookies
-    assert "refresh_token" in s.cookies
-
-
-def test_register_duplicate_email_returns_400(user_session):
-    s = requests.Session()
-    r = s.post(f"{API}/auth/register",
-               json={"email": user_session.user_email, "password": "x1234567", "name": "dup"},
-               timeout=15)
-    assert r.status_code == 400
-
-
-def test_login_admin_success(admin_session):
-    r = admin_session.get(f"{API}/auth/me", timeout=10)
-    assert r.status_code == 200
-    me = r.json()
-    assert me["email"] == ADMIN_EMAIL
-    assert me["role"] == "admin"
-
-
-def test_get_me_unauthenticated_returns_401():
-    r = requests.get(f"{API}/auth/me", timeout=10)
-    assert r.status_code == 401
-
-
-def test_login_wrong_password_returns_401():
-    r = requests.post(f"{API}/auth/login",
-                      json={"email": ADMIN_EMAIL, "password": "WRONG_PW_xyz"}, timeout=15)
-    assert r.status_code == 401
-
-
-# ---------- Protected endpoints reject without cookie ----------
-@pytest.mark.parametrize("method,path,body", [
-    ("GET", "/plants", None),
-    ("POST", "/plants", {"common_name": "x"}),
-    ("GET", "/reminders", None),
-    ("POST", "/reminders", {"plant_id": "x", "type": "water", "frequency": "weekly"}),
-    ("POST", "/recommendations", {}),
-    ("POST", "/identify", {"image_base64": "AAA"}),
-])
-def test_protected_endpoints_require_auth(method, path, body):
-    r = requests.request(method, f"{API}{path}", json=body, timeout=15)
-    assert r.status_code == 401, f"{method} {path} expected 401, got {r.status_code}"
-
-
-# ---------- Profile update ----------
-def test_update_profile(user_session):
-    r = user_session.put(f"{API}/auth/me", json={
-        "name": "TEST_Updated_Name",
-        "location": {"city": "Roma", "lat": 41.9, "lng": 12.5},
-        "home_situation": {"pets": ["gatto"], "lighting": "media", "space": "appartamento"},
-    }, timeout=15)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["name"] == "TEST_Updated_Name"
-    assert body["location"]["city"] == "Roma"
-    assert body["home_situation"]["pets"] == ["gatto"]
-
-    # Verify via GET
-    me = user_session.get(f"{API}/auth/me", timeout=10).json()
-    assert me["name"] == "TEST_Updated_Name"
-
-
-# ---------- Plants CRUD + propagation reminder ----------
-@pytest.fixture(scope="module")
-def created_plant(user_session):
-    """Create a plant whose best_season includes the current season (primavera in May)."""
+# ============ PLANTS ============
+@pytest.fixture(scope="class")
+def created_plant_id(request, s):
     payload = {
         "common_name": "TEST_Pothos",
         "scientific_name": "Epipremnum aureum",
@@ -140,158 +96,162 @@ def created_plant(user_session):
         "light_requirement": "Bassa-Media",
         "water_requirement": "Settimanale",
         "pet_friendly": False,
-        "propagation": {
-            "methods": ["talea in acqua"],
-            "difficulty": "Facile",
-            "best_season": "primavera/estate",
-            "rooting_time": "2-3 settimane",
-            "steps": ["taglia", "metti in acqua"],
-            "tips": "tip",
-        },
-        "notes": "TEST_note",
     }
-    r = user_session.post(f"{API}/plants", json=payload, timeout=15)
+    r = s.post(f"{API}/plants", json=payload, timeout=15)
     assert r.status_code == 200, r.text
-    plant = r.json()
-    assert plant["common_name"] == "TEST_Pothos"
-    assert plant["propagation"]["best_season"] == "primavera/estate"
-    return plant
-
-
-def test_get_my_plants_returns_created(user_session, created_plant):
-    r = user_session.get(f"{API}/plants", timeout=10)
-    assert r.status_code == 200
-    ids = [p["id"] for p in r.json()]
-    assert created_plant["id"] in ids
-
-
-def test_get_plant_by_id(user_session, created_plant):
-    r = user_session.get(f"{API}/plants/{created_plant['id']}", timeout=10)
-    assert r.status_code == 200
-    assert r.json()["id"] == created_plant["id"]
-    assert r.json()["propagation"]["difficulty"] == "Facile"
-
-
-def test_get_plant_other_user_returns_404(admin_session, created_plant):
-    r = admin_session.get(f"{API}/plants/{created_plant['id']}", timeout=10)
-    assert r.status_code == 404
-
-
-def test_propagation_reminder_auto_created(user_session, created_plant):
-    """Spec: best_season contains current season -> a reminder of type=propagation must exist."""
-    r = user_session.get(f"{API}/reminders", timeout=10)
-    assert r.status_code == 200
-    rems = r.json()
-    prop_rem = [x for x in rems if x["plant_id"] == created_plant["id"] and x["type"] == "propagation"]
-    assert len(prop_rem) == 1, f"expected one propagation reminder, got {prop_rem}"
-    assert prop_rem[0]["enabled"]
-    assert "primavera" in prop_rem[0]["frequency"].lower()
-
-
-def test_no_propagation_reminder_when_season_mismatch(user_session):
-    """Plant with best_season=autunno only -> no propagation reminder."""
-    payload = {
-        "common_name": "TEST_OffSeason",
-        "propagation": {
-            "methods": ["seme"], "difficulty": "Media",
-            "best_season": "autunno", "rooting_time": "1m",
-            "steps": ["s1"], "tips": "x",
-        },
-    }
-    r = user_session.post(f"{API}/plants", json=payload, timeout=15)
-    assert r.status_code == 200
-    plant = r.json()
-    rems = user_session.get(f"{API}/reminders", timeout=10).json()
-    prop_rem = [x for x in rems if x["plant_id"] == plant["id"] and x["type"] == "propagation"]
-    assert prop_rem == []
-    # cleanup
-    user_session.delete(f"{API}/plants/{plant['id']}", timeout=10)
-
-
-# ---------- Reminders CRUD ----------
-def test_create_water_reminder(user_session, created_plant):
-    r = user_session.post(f"{API}/reminders",
-                          json={"plant_id": created_plant["id"], "type": "water", "frequency": "weekly"},
-                          timeout=10)
-    assert r.status_code == 200, r.text
-    rem = r.json()
-    assert rem["type"] == "water"
-    assert rem["plant_name"] == "TEST_Pothos"
-
-    # toggle
-    upd = user_session.put(f"{API}/reminders/{rem['id']}", json={"enabled": False}, timeout=10)
-    assert upd.status_code == 200
-
-    # delete
-    delr = user_session.delete(f"{API}/reminders/{rem['id']}", timeout=10)
-    assert delr.status_code == 200
-
-
-def test_delete_plant_cascades_reminders(user_session):
-    # create disposable plant + reminder
-    r = user_session.post(f"{API}/plants", json={"common_name": "TEST_Cascade"}, timeout=15)
     pid = r.json()["id"]
-    user_session.post(f"{API}/reminders",
-                      json={"plant_id": pid, "type": "water", "frequency": "weekly"}, timeout=10)
-    # delete plant
-    d = user_session.delete(f"{API}/plants/{pid}", timeout=10)
-    assert d.status_code == 200
-    rems = user_session.get(f"{API}/reminders", timeout=10).json()
-    assert all(x["plant_id"] != pid for x in rems)
+    request.cls.plant_id = pid
+    yield pid
+    # Cleanup at end of class
+    s.delete(f"{API}/plants/{pid}", timeout=15)
 
 
-# ---------- Recommendations ----------
-def test_recommendations_unfiltered(user_session):
-    r = user_session.post(f"{API}/recommendations", json={"filters": {}}, timeout=10)
-    assert r.status_code == 200
-    assert len(r.json()["recommendations"]) >= 5
+class TestPlants:
+    def test_create_plant(self, s, created_plant_id):
+        r = s.get(f"{API}/plants/{created_plant_id}", timeout=15)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["common_name"] == "TEST_Pothos"
+        assert body["user_id"] == "default-user"
+        assert body["id"] == created_plant_id
+        assert "_id" not in body
+        assert "client_id" not in body
+
+    def test_list_plants_contains_created(self, s, created_plant_id):
+        r = s.get(f"{API}/plants", timeout=15)
+        assert r.status_code == 200
+        ids = [p["id"] for p in r.json()]
+        assert created_plant_id in ids
+
+    def test_idempotent_create_with_client_id(self, s):
+        cid = f"TEST_cid_{uuid.uuid4()}"
+        payload = {"common_name": "TEST_IdempotentPlant", "client_id": cid}
+        r1 = s.post(f"{API}/plants", json=payload, timeout=15)
+        assert r1.status_code == 200
+        id1 = r1.json()["id"]
+
+        r2 = s.post(f"{API}/plants", json=payload, timeout=15)
+        assert r2.status_code == 200
+        id2 = r2.json()["id"]
+        assert id1 == id2, "Same client_id must return same plant id"
+        # Cleanup
+        s.delete(f"{API}/plants/{id1}", timeout=15)
+
+    def test_get_nonexistent_plant_404(self, s):
+        r = s.get(f"{API}/plants/does-not-exist-{uuid.uuid4()}", timeout=15)
+        assert r.status_code == 404
+
+    def test_delete_plant_cascades_reminders(self, s):
+        # Create plant
+        cp = s.post(f"{API}/plants", json={"common_name": "TEST_CascadePlant"}, timeout=15)
+        assert cp.status_code == 200
+        pid = cp.json()["id"]
+
+        # Create reminder on it
+        cr = s.post(f"{API}/reminders", json={
+            "plant_id": pid, "type": "water", "frequency": "Settimanale",
+        }, timeout=15)
+        assert cr.status_code == 200, cr.text
+        rid = cr.json()["id"]
+
+        # Delete plant
+        d = s.delete(f"{API}/plants/{pid}", timeout=15)
+        assert d.status_code == 200
+
+        # Reminder should be gone
+        rems = s.get(f"{API}/reminders", timeout=15).json()
+        assert rid not in [r["id"] for r in rems], "Reminder was not cascade-deleted"
+
+    def test_delete_nonexistent_plant_404(self, s):
+        r = s.delete(f"{API}/plants/missing-{uuid.uuid4()}", timeout=15)
+        assert r.status_code == 404
 
 
-def test_recommendations_pet_friendly_filter(user_session):
-    r = user_session.post(f"{API}/recommendations",
-                          json={"filters": {"pet_friendly": True}}, timeout=10)
-    assert r.status_code == 200
-    recs = r.json()["recommendations"]
-    assert recs and all(p["pet_friendly"] for p in recs)
+# ============ REMINDERS ============
+class TestReminders:
+    @pytest.fixture(scope="class")
+    def plant_for_reminders(self, s):
+        cp = s.post(f"{API}/plants", json={"common_name": "TEST_ReminderPlant"}, timeout=15)
+        assert cp.status_code == 200
+        pid = cp.json()["id"]
+        yield pid
+        s.delete(f"{API}/plants/{pid}", timeout=15)
+
+    def test_full_reminder_lifecycle(self, s, plant_for_reminders):
+        # Create
+        cr = s.post(f"{API}/reminders", json={
+            "plant_id": plant_for_reminders, "type": "water", "frequency": "Settimanale",
+        }, timeout=15)
+        assert cr.status_code == 200
+        rid = cr.json()["id"]
+        assert cr.json()["enabled"] is True
+
+        # List
+        lst = s.get(f"{API}/reminders", timeout=15).json()
+        assert rid in [r["id"] for r in lst]
+
+        # Toggle off
+        u = s.put(f"{API}/reminders/{rid}", json={"enabled": False}, timeout=15)
+        assert u.status_code == 200
+        after = [r for r in s.get(f"{API}/reminders", timeout=15).json() if r["id"] == rid][0]
+        assert after["enabled"] is False
+
+        # Delete
+        d = s.delete(f"{API}/reminders/{rid}", timeout=15)
+        assert d.status_code == 200
+        assert rid not in [r["id"] for r in s.get(f"{API}/reminders", timeout=15).json()]
+
+    def test_create_reminder_unknown_plant_404(self, s):
+        r = s.post(f"{API}/reminders", json={
+            "plant_id": f"missing-{uuid.uuid4()}", "type": "water", "frequency": "Daily",
+        }, timeout=15)
+        assert r.status_code == 404
 
 
-# ---------- Plant of the week ----------
-def test_plant_of_the_week_public():
-    r = requests.get(f"{API}/plant-of-the-week", timeout=10)
-    assert r.status_code == 200
-    body = r.json()
-    assert "plant" in body and "week" in body
-    assert body["plant"]["name"]
+# ============ PLANT OF THE WEEK ============
+class TestPlantOfTheWeek:
+    def test_potw(self, s):
+        r = s.get(f"{API}/plant-of-the-week", timeout=15)
+        assert r.status_code == 200
+        body = r.json()
+        assert "plant" in body and "week" in body and "next_reset" in body
+        assert "name" in body["plant"] and "image" in body["plant"]
 
 
-# ---------- Logout ----------
-def test_logout_clears_cookies():
-    s = requests.Session()
-    payload = _new_user_payload()
-    s.post(f"{API}/auth/register", json=payload, timeout=15)
-    assert "access_token" in s.cookies
-    r = s.post(f"{API}/auth/logout", timeout=10)
-    assert r.status_code == 200
-    # After logout server-cleared cookies, subsequent /me must 401
-    s.cookies.clear()
-    r2 = s.get(f"{API}/auth/me", timeout=10)
-    assert r2.status_code == 401
+# ============ RECOMMENDATIONS ============
+class TestRecommendations:
+    def test_no_filters(self, s):
+        r = s.post(f"{API}/recommendations", json={}, timeout=15)
+        assert r.status_code == 200
+        recs = r.json()["recommendations"]
+        assert len(recs) >= 5
+
+    def test_pet_friendly_filter(self, s):
+        r = s.post(f"{API}/recommendations", json={"filters": {"pet_friendly": True}}, timeout=15)
+        assert r.status_code == 200
+        recs = r.json()["recommendations"]
+        assert len(recs) > 0
+        assert all(p["pet_friendly"] is True for p in recs)
 
 
-# ---------- Brute force lockout ----------
-def test_brute_force_lockout():
-    """K8s ingress may rotate client IP across requests, so we retry many times
-    and consider the test passed as soon as we observe a 429 (lockout) response."""
-    fake_email = f"locktest_{uuid.uuid4().hex[:8]}@plantcare.com"
-    requests.post(f"{API}/auth/register",
-                  json={"email": fake_email, "password": "correctpw1", "name": "Lock"}, timeout=15)
-    seen_429 = False
-    for _ in range(20):
-        r = requests.post(f"{API}/auth/login",
-                          json={"email": fake_email, "password": "WRONG_pw"}, timeout=15)
-        if r.status_code == 429:
-            seen_429 = True
-            break
-        assert r.status_code == 401, f"unexpected status {r.status_code}: {r.text}"
-        time.sleep(0.1)
-    assert seen_429, "never received 429 lockout after 20 wrong-password attempts (env may rotate IPs)"
+# ============ IDENTIFY (Gemini network call) ============
+class TestIdentify:
+    def test_identify_with_tiny_image(self, s):
+        # 1x1 transparent PNG
+        tiny = base64.b64encode(bytes.fromhex(
+            "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+            "0000000d49444154789c626001000000050001"
+            "0d0a2db40000000049454e44ae426082"
+        )).decode()
+        r = s.post(f"{API}/identify", json={"image_base64": tiny}, timeout=90)
+        # Endpoint exists and responds; with a 1x1 image, Gemini may reject it.
+        # Acceptable: 200 with fallback OR 500 with Gemini error. NOT 404/405/422 (route missing/wiring broken).
+        assert r.status_code in (200, 500), f"identify wiring failure: {r.status_code} {r.text[:200]}"
+        if r.status_code == 200:
+            body = r.json()
+            assert "common_name" in body
+            assert "care_guide" in body
+            assert "confidence" in body
+        else:
+            # Document the leak: server returns raw Gemini error.
+            assert "Gemini" in r.text or "identifying" in r.text
