@@ -351,6 +351,101 @@ async def update_reminder(reminder_id: str, user_id: str, request: UpdateReminde
         raise HTTPException(status_code=404, detail="Reminder not found")
     return {"message": "Reminder updated successfully"}
 
+@app.get("/api/plant-of-the-week")
+async def plant_of_the_week(user_id: Optional[str] = None):
+    """Returns a curated plant for the current ISO week. If user_id is provided and the user has pets,
+    only pet-friendly plants are considered."""
+    catalog = [
+        {
+            "name": "Pothos (Epipremnum aureum)",
+            "description": "Pianta facile da curare, perfetta per principianti. Tollera poca luce.",
+            "light": "Bassa-Media",
+            "pet_friendly": False,
+            "difficulty": "Facile",
+            "image": "https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=600&q=80",
+            "fun_fact": "Il Pothos è soprannominato 'pianta del diavolo' perché è quasi impossibile farla morire."
+        },
+        {
+            "name": "Sansevieria (Lingua di suocera)",
+            "description": "Pianta resistente che purifica l'aria. Richiede poca acqua.",
+            "light": "Bassa-Alta",
+            "pet_friendly": False,
+            "difficulty": "Facile",
+            "image": "https://images.unsplash.com/photo-1593691509543-c55fb32d8de5?w=600&q=80",
+            "fun_fact": "La Sansevieria rilascia ossigeno di notte, ideale in camera da letto."
+        },
+        {
+            "name": "Felce di Boston",
+            "description": "Pianta elegante che ama l'umidità. Pet-friendly.",
+            "light": "Media",
+            "pet_friendly": True,
+            "difficulty": "Media",
+            "image": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&q=80",
+            "fun_fact": "Esiste da oltre 350 milioni di anni: ha visto i dinosauri!"
+        },
+        {
+            "name": "Monstera Deliciosa",
+            "description": "Pianta trendy con foglie spettacolari. Cresce rapidamente.",
+            "light": "Media-Alta",
+            "pet_friendly": False,
+            "difficulty": "Media",
+            "image": "https://images.unsplash.com/photo-1545241047-6083a3684587?w=600&q=80",
+            "fun_fact": "I suoi frutti maturi sanno di mix tra ananas e banana."
+        },
+        {
+            "name": "Chlorophytum (Pianta ragno)",
+            "description": "Pianta purificatrice, sicura per animali. Molto resistente.",
+            "light": "Media",
+            "pet_friendly": True,
+            "difficulty": "Facile",
+            "image": "https://images.unsplash.com/photo-1572688484438-313a6e50c333?w=600&q=80",
+            "fun_fact": "Produce 'piantine bebè' che puoi piantare per creare nuove piante gratis."
+        },
+        {
+            "name": "Ficus Lyrata (Fico a foglia di violino)",
+            "description": "Pianta statement per spazi ampi. Richiede luce brillante.",
+            "light": "Alta",
+            "pet_friendly": False,
+            "difficulty": "Difficile",
+            "image": "https://images.unsplash.com/photo-1509423350716-97f9360b4e09?w=600&q=80",
+            "fun_fact": "In natura può crescere fino a 15 metri di altezza."
+        },
+        {
+            "name": "Calathea Orbifolia",
+            "description": "Foglie a strisce argentate, muove le foglie al tramonto.",
+            "light": "Media",
+            "pet_friendly": True,
+            "difficulty": "Media",
+            "image": "https://images.unsplash.com/photo-1632207691143-643e2a9a9361?w=600&q=80",
+            "fun_fact": "Le sue foglie si chiudono di notte: viene chiamata 'pianta della preghiera'."
+        }
+    ]
+    
+    # Filter for pet-safe if user has pets
+    pool = catalog
+    if user_id:
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if user and user.get("home_situation", {}).get("pets"):
+            pet_safe = [p for p in catalog if p["pet_friendly"]]
+            if pet_safe:
+                pool = pet_safe
+    
+    # Deterministic pick by ISO week
+    now = datetime.now(timezone.utc)
+    iso_year, iso_week, _ = now.isocalendar()
+    plant = pool[(iso_year * 100 + iso_week) % len(pool)]
+    
+    # Compute next reset date (next Monday)
+    from datetime import timedelta
+    days_ahead = 7 - now.weekday()
+    next_reset = (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    return {
+        "week": f"{iso_year}-W{iso_week:02d}",
+        "next_reset": next_reset.isoformat(),
+        "plant": plant
+    }
+
 # Recommendations Endpoint
 @app.post("/api/recommendations")
 async def get_recommendations(request: RecommendationRequest):

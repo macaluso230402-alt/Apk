@@ -1,9 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Leaf, Bell, BookOpen } from 'lucide-react';
+import { Camera, Leaf, Bell, BookOpen, Sparkles, Shield, Sun } from 'lucide-react';
+import axios from 'axios';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 function HomePage() {
   const navigate = useNavigate();
+  const [potw, setPotw] = useState(null);
+
+  useEffect(() => {
+    axios.get(`${API_URL}/api/plant-of-the-week`)
+      .then((res) => setPotw(res.data))
+      .catch(() => setPotw(null));
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -74,6 +84,62 @@ function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Plant of the Week */}
+      {potw && potw.plant && (
+        <section className="py-16 bg-[#FDFBF7]" data-testid="plant-of-the-week-section">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 mb-2 justify-center lg:justify-start">
+              <Sparkles className="text-[#E07A5F]" size={20} strokeWidth={1.5} />
+              <span className="text-xs uppercase tracking-[0.2em] text-[#8A9F8E]">Pianta della Settimana</span>
+            </div>
+            <div className="plant-card overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-0 card-hover">
+              <div className="h-64 lg:h-auto bg-[#F3F5F1] overflow-hidden">
+                <img
+                  src={potw.plant.image}
+                  alt={potw.plant.name}
+                  className="w-full h-full object-cover"
+                  data-testid="potw-image"
+                />
+              </div>
+              <div className="p-8 lg:p-12 flex flex-col justify-center">
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-3 text-[#1A2E20]" data-testid="potw-name">
+                  {potw.plant.name}
+                </h2>
+                <p className="text-base text-[#5C7061] leading-relaxed mb-4" data-testid="potw-description">
+                  {potw.plant.description}
+                </p>
+                {potw.plant.fun_fact && (
+                  <div className="bg-[#F3F5F1] rounded-xl p-4 mb-4 border-l-4 border-[#E07A5F]" data-testid="potw-fun-fact">
+                    <p className="text-xs uppercase tracking-wider text-[#8A9F8E] mb-1">Lo sapevi?</p>
+                    <p className="text-sm text-[#1A2E20] italic">{potw.plant.fun_fact}</p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {potw.plant.pet_friendly && (
+                    <span className="badge-pet-friendly flex items-center gap-1">
+                      <Shield size={12} /> Pet-Friendly
+                    </span>
+                  )}
+                  <span className="badge-light flex items-center gap-1">
+                    <Sun size={12} /> {potw.plant.light}
+                  </span>
+                  <span className="text-xs px-3 py-1 rounded-full" style={{ background: '#E2E8E4', color: '#1A2E20' }}>
+                    {potw.plant.difficulty}
+                  </span>
+                </div>
+                <button
+                  onClick={() => navigate('/recommendations')}
+                  className="btn-primary self-start"
+                  data-testid="potw-explore-button"
+                >
+                  Esplora Altre Piante
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Features Section */}
       <section className="py-16 bg-[#F3F5F1]">
