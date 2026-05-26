@@ -1,0 +1,34 @@
+{
+  "summary": "Iter 7 covered the new 'Diario pianta' feature end-to-end. Backend: added 4 new pytest tests for journal (create+list-sorted-desc, idempotency, 404-on-missing-plant, cascade-on-plant-delete). All 24 backend tests pass (100%). Frontend: verified desktop /plant/{id} JournalSection renders empty state, note + photo upload works (count -> '1 foto', cache populates pc_journal_<pid>, page reload shows entry from cache immediately), delete works (count -> '0 foto', empty state returns). Offline upload queues 'add-journal' op and gets flushed on 'online'. Offline delete queues 'delete-journal'. Mobile (390x800) initially failed because MobilePlantDetailPage.js referenced <JournalSection> without importing it — FIXED by adding the missing import. After fix, mobile journal-section renders. No JournalSection/journalCache/offlineStorage console errors. Plant delete -> reload /plant/{id} returns 404 quietly without crashing the app.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix already applied by testing agent: added 'import JournalSection from ../components/JournalSection' to /app/frontend/src/mobile/MobilePlantDetailPage.js. Main agent should verify the import is intact and consider adding an ESLint rule (no-undef) to catch this in future."
+  ],
+  "critical_code_review_comments": [
+    "BUG (fixed by tester): /app/frontend/src/mobile/MobilePlantDetailPage.js used <JournalSection /> without importing it. Mobile page was crashing silently — only the header rendered. Added the missing import.",
+    "JournalSection.handleDelete: pre-emptively removes the entry from local cache before the API call. If the entry is the optimistic 'tmp_' one that was never flushed (i.e. offline upload still pending), the delete-journal op will be queued with the tmp id and the corresponding add-journal op will also still be pending — when flushed, add-journal will create a server entry and the subsequent delete-journal (tmp id) will 404. Consider de-queuing the pending add-journal op when deleting a tmp_ entry. Edge case, low priority.",
+    "JournalSection: textarea note is cleared on upload start but if the network upload fails synchronously and we fall to the optimistic-only path, the note IS persisted with the optimistic entry — correct behavior. Good.",
+    "syncQueue.processOp('add-journal'): idempotency relies on backend honoring client_id == _tempId. Verified working in backend tests.",
+    "No data-testid='propagation-section' on PropagationSection — would make ordering assertions easier in future tests. Optional enhancement.",
+    "JournalSection re-fetches on mount (refresh useCallback) — good. But it does NOT subscribe to syncQueue onSyncChange, so after offline flush the UI will only update once the cache write in processOp completes (it does, via journalCache.setByPlant). Entries appear correctly after flush in this test. OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_api.py (added TestJournal class with 4 tests)",
+    "/app/frontend/src/mobile/MobilePlantDetailPage.js (added missing JournalSection import)"
+  ],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "100% after import fix"},
+  "test_credentials": "N/A — auth removed",
+  "seed_data_creation": "Created TEST_JournalUI, TEST_MobileJournal, TEST_JournalPlant, TEST_CascadeJournalPlant plants and several journal entries during testing. All cleaned up via DELETE on teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend journal endpoints (GET/POST/DELETE /api/plants/{id}/journal[/{entryId}]) are fully covered in /app/backend/tests/test_api.py::TestJournal. Frontend: data-testids journal-section, journal-empty, journal-add-photo, journal-note, journal-file-input, journal-count, journal-entry-{idx}, journal-delete-{idx}, journal-grid, journal-note-{idx}. Mobile detail page now correctly imports JournalSection. Use page.context.set_offline(True) + dispatchEvent('offline')/('online') for offline tests. Tiny JPEG used: '/9j/4AAQSkZJRgABAQEASABIAAD/...' (single-pixel base64). When using urllib from the playwright sandbox the preview URL returns 403 — use page.evaluate(fetch) from the browser context instead."
+}

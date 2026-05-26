@@ -1,5 +1,5 @@
 import api from './api';
-import { pendingOps, pendingScans, plantsCache, remindersCache } from './offlineStorage';
+import { pendingOps, pendingScans, plantsCache, remindersCache, journalCache } from './offlineStorage';
 import { syncReminders } from './notifications';
 
 let syncing = false;
@@ -32,6 +32,26 @@ async function processOp(op) {
     }
     case 'update-profile':
       await api.put('/api/profile', op.payload);
+      return;
+    case 'add-journal': {
+      const { plantId, image_base64, note, _tempId } = op.payload;
+      const { data } = await api.post(`/api/plants/${plantId}/journal`, {
+        client_id: _tempId,
+        image_base64,
+        note,
+      });
+      const all = journalCache.getByPlant(plantId);
+      const idx = all.findIndex((e) => e.id === _tempId);
+      if (idx >= 0) {
+        all[idx] = data;
+        journalCache.setByPlant(plantId, all);
+      } else {
+        journalCache.upsert(plantId, data);
+      }
+      return;
+    }
+    case 'delete-journal':
+      await api.delete(`/api/plants/${op.payload.plantId}/journal/${op.payload.entryId}`);
       return;
     default:
       throw new Error(`Unknown op kind: ${op.kind}`);

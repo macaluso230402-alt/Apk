@@ -140,6 +140,21 @@ class UpdateReminderRequest(BaseModel):
     enabled: bool
 
 
+class JournalEntry(BaseModel):
+    id: str
+    plant_id: str
+    user_id: str
+    image_url: Optional[str] = None
+    note: Optional[str] = None
+    created_at: str
+
+
+class CreateJournalRequest(BaseModel):
+    image_base64: Optional[str] = None
+    note: Optional[str] = None
+    client_id: Optional[str] = None  # idempotency key from offline queue
+
+
 class RecommendationRequest(BaseModel):
     filters: Optional[Dict[str, Any]] = None
 
@@ -150,6 +165,8 @@ async def on_startup():
     await db.plants.create_index([("user_id", 1), ("id", 1)])
     await db.plants.create_index([("user_id", 1), ("client_id", 1)])
     await db.reminders.create_index([("user_id", 1), ("id", 1)])
+    await db.journal.create_index([("user_id", 1), ("plant_id", 1), ("created_at", -1)])
+    await db.journal.create_index([("user_id", 1), ("client_id", 1)])
     await db.profile.create_index("id", unique=True)
     # Ensure single user profile exists
     existing = await db.profile.find_one({"id": DEFAULT_USER_ID})
@@ -386,7 +403,59 @@ async def delete_plant(plant_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Plant not found")
     await db.reminders.delete_many({"plant_id": plant_id, "user_id": DEFAULT_USER_ID})
+    await db.journal.delete_many({"plant_id": plant_id, "user_id": DEFAULT_USER_ID})
     return {"message": "Plant deleted successfully"}
+
+
+# ================= JOURNAL =================
+@app.get("/api/plants/{plant_id}/journal", response_model=List[JournalEntry])
+async def list_journal(plant_id: str):
+    plant = await db.plants.find_one({"id": plant_id, "user_id": DEFAULT_USER_ID}, {"_id": 0, "id": 1})
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+    entries = []
+    async for e in db.journal.find(
+        {"user_id": DEFAULT_USER_ID, "plant_id": plant_id},
+        {"_id": 0, "client_id": 0},
+    ).sort("created_at", -1):
+        entries.append(JournalEntry(**e))
+    return entries
+
+
+@app.post("/api/plants/{plant_id}/journal", response_model=JournalEntry)
+async def create_journal(plant_id: str, req: CreateJournalRequest):
+    plant = await db.plants.find_one({"id": plant_id, "user_id": DEFAULT_USER_ID}, {"_id": 0, "id": 1})
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found")
+    if req.client_id:
+        existing = await db.journal.find_one(
+            {"user_id": DEFAULT_USER_ID, "plant_id": plant_id, "client_id": req.client_id},
+            {"_id": 0, "client_id": 0},
+        )
+        if existing:
+            return JournalEntry(**existing)
+    entry = {
+        "id": str(uuid.uuid4()),
+        "plant_id": plant_id,
+        "user_id": DEFAULT_USER_ID,
+        "client_id": req.client_id,
+        "image_url": f"data:image/jpeg;base64,{req.image_base64}" if req.image_base64 else None,
+        "note": req.note,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.journal.insert_one(entry)
+    entry.pop("client_id", None)
+    return JournalEntry(**entry)
+
+
+@app.delete("/api/plants/{plant_id}/journal/{entry_id}")
+async def delete_journal(plant_id: str, entry_id: str):
+    result = await db.journal.delete_one(
+        {"id": entry_id, "plant_id": plant_id, "user_id": DEFAULT_USER_ID}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return {"message": "Entry deleted"}
 
 
 # ================= REMINDERS =================

@@ -8,6 +8,7 @@ const KEYS = {
   POTW: 'pc_potw',
   PROFILE: 'pc_profile',
   REMINDERS: 'pc_reminders',
+  JOURNAL_PREFIX: 'pc_journal_',
   PENDING_QUEUE: 'pc_pending_ops',
   PENDING_SCANS: 'pc_pending_scans',
 };
@@ -73,6 +74,21 @@ export const recommendationsCache = {
 export const profileCache = {
   get: () => safe.get(KEYS.PROFILE, null),
   set: (data) => safe.set(KEYS.PROFILE, data),
+};
+
+// ============ JOURNAL (per-plant) ============
+export const journalCache = {
+  getByPlant: (plantId) => safe.get(KEYS.JOURNAL_PREFIX + plantId, []),
+  setByPlant: (plantId, list) => safe.set(KEYS.JOURNAL_PREFIX + plantId, list),
+  upsert: (plantId, entry) => {
+    const all = journalCache.getByPlant(plantId);
+    const idx = all.findIndex((e) => e.id === entry.id);
+    if (idx >= 0) all[idx] = entry; else all.unshift(entry);
+    journalCache.setByPlant(plantId, all);
+  },
+  remove: (plantId, entryId) => {
+    journalCache.setByPlant(plantId, journalCache.getByPlant(plantId).filter((e) => e.id !== entryId));
+  },
 };
 
 // ============ PENDING OPS QUEUE ============

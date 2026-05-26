@@ -4,6 +4,7 @@ import { Droplets, Sun, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import PropagationSection from '../components/PropagationSection';
+import JournalSection from '../components/JournalSection';
 import MobileHeader from './MobileHeader';
 import MobileBottomNav from './MobileBottomNav';
 import { plantsCache, pendingOps } from '../lib/offlineStorage';
@@ -101,6 +102,7 @@ export default function MobilePlantDetailPage() {
             </div>
 
             <PropagationSection propagation={plant.propagation} />
+            <JournalSection plantId={plant.id} />
           </div>
         </div>
       </div>

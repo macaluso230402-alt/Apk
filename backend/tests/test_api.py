@@ -167,6 +167,85 @@ class TestPlants:
         assert r.status_code == 404
 
 
+# ============ JOURNAL ============
+class TestJournal:
+    @pytest.fixture(scope="class")
+    def plant_for_journal(self, s):
+        cp = s.post(f"{API}/plants", json={"common_name": "TEST_JournalPlant"}, timeout=15)
+        assert cp.status_code == 200
+        pid = cp.json()["id"]
+        yield pid
+        # Cleanup
+        s.delete(f"{API}/plants/{pid}", timeout=15)
+
+    def test_create_and_list_journal_sorted_desc(self, s, plant_for_journal):
+        tiny_b64 = base64.b64encode(b"\xff\xd8\xff\xe0fakejpegheader").decode()
+        # Entry 1
+        r1 = s.post(f"{API}/plants/{plant_for_journal}/journal",
+                    json={"image_base64": tiny_b64, "note": "prima foto"}, timeout=15)
+        assert r1.status_code == 200, r1.text
+        e1 = r1.json()
+        assert e1["plant_id"] == plant_for_journal
+        assert e1["note"] == "prima foto"
+        assert e1["image_url"].startswith("data:image/jpeg;base64,")
+        assert "_id" not in e1
+        assert "client_id" not in e1
+
+        # Entry 2 (slightly later)
+        import time
+        time.sleep(0.05)
+        r2 = s.post(f"{API}/plants/{plant_for_journal}/journal",
+                    json={"image_base64": tiny_b64, "note": "seconda foto"}, timeout=15)
+        assert r2.status_code == 200
+        e2 = r2.json()
+
+        # List sorted newest-first
+        lst = s.get(f"{API}/plants/{plant_for_journal}/journal", timeout=15)
+        assert lst.status_code == 200
+        items = lst.json()
+        assert len(items) >= 2
+        ids = [x["id"] for x in items]
+        assert ids.index(e2["id"]) < ids.index(e1["id"]), "newest should come first"
+        # Cleanup entries
+        for e in (e1, e2):
+            s.delete(f"{API}/plants/{plant_for_journal}/journal/{e['id']}", timeout=15)
+
+    def test_journal_idempotency(self, s, plant_for_journal):
+        cid = f"TEST_journal_cid_{uuid.uuid4()}"
+        payload = {"client_id": cid, "note": "idempotent", "image_base64": "Zm9v"}
+        a = s.post(f"{API}/plants/{plant_for_journal}/journal", json=payload, timeout=15)
+        b = s.post(f"{API}/plants/{plant_for_journal}/journal", json=payload, timeout=15)
+        assert a.status_code == 200 and b.status_code == 200
+        assert a.json()["id"] == b.json()["id"], "same client_id must return same entry"
+        s.delete(f"{API}/plants/{plant_for_journal}/journal/{a.json()['id']}", timeout=15)
+
+    def test_journal_on_missing_plant_404(self, s):
+        missing = f"missing-{uuid.uuid4()}"
+        r = s.get(f"{API}/plants/{missing}/journal", timeout=15)
+        assert r.status_code == 404
+        assert "Plant not found" in r.text
+        r2 = s.post(f"{API}/plants/{missing}/journal", json={"note": "x"}, timeout=15)
+        assert r2.status_code == 404
+
+    def test_delete_plant_cascades_journal(self, s):
+        cp = s.post(f"{API}/plants", json={"common_name": "TEST_CascadeJournalPlant"}, timeout=15)
+        assert cp.status_code == 200
+        pid = cp.json()["id"]
+        # Add 2 journal entries
+        for note in ("a", "b"):
+            jr = s.post(f"{API}/plants/{pid}/journal", json={"note": note}, timeout=15)
+            assert jr.status_code == 200
+        # Verify they exist
+        lst = s.get(f"{API}/plants/{pid}/journal", timeout=15)
+        assert lst.status_code == 200 and len(lst.json()) == 2
+        # Delete plant -> cascade
+        d = s.delete(f"{API}/plants/{pid}", timeout=15)
+        assert d.status_code == 200
+        # Now journal GET should 404 (plant gone)
+        after = s.get(f"{API}/plants/{pid}/journal", timeout=15)
+        assert after.status_code == 404
+
+
 # ============ REMINDERS ============
 class TestReminders:
     @pytest.fixture(scope="class")

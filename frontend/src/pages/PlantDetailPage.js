@@ -4,6 +4,7 @@ import { ArrowLeft, Droplets, Sun, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import PropagationSection from '../components/PropagationSection';
+import JournalSection from '../components/JournalSection';
 import { plantsCache, pendingOps } from '../lib/offlineStorage';
 
 function PlantDetailPage() {
@@ -101,6 +102,7 @@ function PlantDetailPage() {
           </div>
 
           <PropagationSection propagation={plant.propagation} />
+          <JournalSection plantId={plant.id} />
         </div>
       </div>
     </div>
