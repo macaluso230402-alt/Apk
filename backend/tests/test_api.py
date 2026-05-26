@@ -184,7 +184,7 @@ def test_propagation_reminder_auto_created(user_session, created_plant):
     rems = r.json()
     prop_rem = [x for x in rems if x["plant_id"] == created_plant["id"] and x["type"] == "propagation"]
     assert len(prop_rem) == 1, f"expected one propagation reminder, got {prop_rem}"
-    assert prop_rem[0]["enabled"] == True
+    assert prop_rem[0]["enabled"]
     assert "primavera" in prop_rem[0]["frequency"].lower()
 
 

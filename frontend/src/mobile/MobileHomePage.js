@@ -15,7 +15,9 @@ export default function MobileHomePage() {
       const r = await api.get('/api/plant-of-the-week');
       setPotw(r.data);
     } catch (err) {
-      console.error('Failed to load plant of the week:', err);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Failed to load plant of the week:', err);
+      }
     }
   }, []);
 

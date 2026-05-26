@@ -13,7 +13,7 @@ export function AuthProvider({ children }) {
       setUser(data);
     } catch (err) {
       // Not authenticated or session expired — expected on first load.
-      if (err?.response && err.response.status !== 401) {
+      if (err?.response && err.response.status !== 401 && process.env.NODE_ENV !== 'production') {
         console.error('Auth refresh failed:', err);
       }
       setUser(false);
@@ -42,7 +42,9 @@ export function AuthProvider({ children }) {
     try {
       await api.post('/api/auth/logout');
     } catch (err) {
-      console.error('Logout request failed:', err);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Logout request failed:', err);
+      }
     }
     setUser(false);
   }, []);
