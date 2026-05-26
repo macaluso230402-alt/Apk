@@ -1,56 +1,77 @@
-# PlantCare - Product Requirements Document
+# PlantCare — PRD
 
-## Original Problem Statement
-App per riconoscere le piante via foto, con guide personalizzate di cura, manutenzione e propagazione. Focus piante da interno, consigli su nuove piante da acquistare, considerando posizione e situazione casa (animali, ecc).
+## Original Problem Statement (Italian)
+> Vorrei un'applicazione che mi aiuti a riconoscere le piante tramite fotocamera e che crei delle guide personalizzate con cure e manutenzione in base ad ogni possibile evenienza, incentrato sulle piante da interno ma che ti dia consigli anche su nuove piante da acquistare e che consideri anche la tua posizione o la tua situazione in casa (es. Animali ecc).
+
+## User Persona
+- **Single user, private**: la app non ha più login né registrazione. Profilo unico locale (DEFAULT_USER_ID = `default-user`).
+- Lingua: italiano.
+- Piattaforme: web responsive (Desktop ≥768px + Mobile <768px) + Android APK via Capacitor.
+
+## Core Requirements (achieved unless noted)
+- ✅ Riconoscimento piante via fotocamera (Gemini 2.5 Flash Vision)
+- ✅ Guide di cura personalizzate (luce, animali, città)
+- ✅ Catalogo "piante consigliate" + Pianta della settimana
+- ✅ Promemoria stagionali con propagazione auto-creata
+- ✅ Layout desktop + mobile separati (`/pages/*` e `/mobile/*`)
+- ✅ NO autenticazione — single-user, privato
+- ✅ Offline-first (cache localStorage + coda sync `pendingOps` / `pendingScans`)
+- ✅ PWA service worker + manifest per asset statici cacheati offline
+- ✅ Capacitor + GitHub Action `build-android-apk.yml` per APK Android
 
 ## Architecture
-- **Frontend**: React + Tailwind + shadcn/ui + lucide-react, AuthContext + ProtectedRoute, useIsMobile hook (breakpoint 768px) per switch mobile/desktop
-- **Backend**: FastAPI + MongoDB (motor async), JWT auth con bcrypt, httpOnly cookies (access 15min + refresh 7d), CORS con credentials per FRONTEND_URL
-- **AI**: Google Gemini 2.5 Flash Vision via emergentintegrations (single call: identify + care + propagation + suitability)
+```
+/app/
+├── backend/
+│   ├── server.py            # FastAPI single-user, no auth (~490 lines)
+│   ├── tests/test_api.py    # 20 pytest no-auth regression tests
+│   └── .env                 # MONGO_URL, DB_NAME, GEMINI_API_KEY
+├── frontend/
+│   ├── android/             # Capacitor Android project
+│   ├── public/
+│   │   ├── service-worker.js   # PWA static cache (cache-first + SWR)
+│   │   └── manifest.json
+│   ├── src/
+│   │   ├── App.js              # ProfileProvider + Router (no auth wall)
+│   │   ├── contexts/ProfileContext.js
+│   │   ├── hooks/{useIsMobile,useOnlineStatus}.js
+│   │   ├── lib/{api,offlineStorage,syncQueue}.js
+│   │   ├── components/OfflineBanner.js
+│   │   ├── pages/         # Desktop (HomePage, ScannerPage, DashboardPage, PlantDetailPage, RemindersPage, RecommendationsPage, ProfilePage)
+│   │   └── mobile/        # Mobile (Mobile*Page.js + MobileBottomNav, MobileHeader)
+│   └── package.json
+└── .github/workflows/build-android-apk.yml
+```
 
-## Core Features Implemented
-1. **Auth JWT**: register/login/logout/refresh/me, bcrypt password hash, brute force protection (5 fail = 15min lockout per ip+email)
-2. **Plant Recognition**: Gemini Vision con propagation completa (methods, difficulty, best_season, rooting_time, steps, tips)
-3. **My Plants CRUD**: lista, dettaglio, eliminazione (cascade su reminders)
-4. **Plant Detail Page**: visualizza care + PropagationSection completa
-5. **Recommendations**: catalogo 7 piante + filtri pet-friendly e luce
-6. **Plant of the Week**: rotazione settimanale ISO, filtro automatico pet-safe se utente ha animali
-7. **Reminders**: CRUD + AUTO-CREAZIONE promemoria propagazione quando si salva una pianta nella stagione ideale
-8. **Profile**: nome, città, animali, luce casa, spazio
-9. **Mobile Version Separata**: 7 pagine dedicate con MobileBottomNav (FAB centrale Scanner), header compatto, layout touch-first
-10. **Refactored Components**: PlantCard, PropagationSection, CareGuide condivisi tra mobile e desktop
+## API Endpoints (all PUBLIC, no auth)
+- `GET /api/health`
+- `GET/PUT /api/profile`
+- `GET/POST /api/plants`, `GET/DELETE /api/plants/{id}` — `client_id` idempotent, cascade-deletes reminders
+- `GET/POST /api/reminders`, `PUT/DELETE /api/reminders/{id}`
+- `POST /api/identify` (Gemini Vision; ritorna fallback IdentifyResponse su errore)
+- `GET /api/plant-of-the-week` (ISO-week based, filtra pet-safe se utente ha animali)
+- `POST /api/recommendations` (filtri: pet_friendly, light)
 
-## Implementation Timeline
-- 2026-02-26: MVP iniziale + Plant of the Week
-- 2026-02-26 (iter 2): Code quality fixes (hooks deps, key index, magic numbers, console)
-- 2026-02-26 (iter 3): Propagation feature added
-- 2026-02-26 (iter 4): JWT auth + mobile version + propagation reminders + refactored components
+## CHANGELOG
+- **2026-02 (this session — fork iteration 5)**: Auth completamente rimosso (no /api/auth/*). Migrazione offline-first completata su tutte le mobile pages (`MobileProfilePage` riscritta su `ProfileContext`, `MobileScannerPage` con coda offline, `MobilePlantDetailPage`, `MobileRecommendationsPage`, `MobileRemindersPage` con cache + pendingOps). PWA service worker + manifest aggiunti. `/api/identify` ora gestisce gracefully gli errori Gemini. MobileBottomNav z-index alzato sopra il badge Emergent. File morti rimossi (`AuthContext.js`, `ProtectedRoute.js`). Test: 20/20 backend + 100% frontend (iteration_5.json).
+- **prior sessions**: setup iniziale FastAPI+React+Mongo, integrazione Gemini, mobile layout, Capacitor + workflow APK, JWT auth (poi rimosso).
 
-## Testing Status
-- Backend: 25/25 pytest pass (100%) - cookie auth, all CRUD, propagation reminder, cascade delete, brute force
-- Frontend: 100% desktop + mobile (390px viewport)
-- Design issues: 0 critical (Emergent badge overlap risolto con z-index 50)
+## Backlog
+### P2
+- `/api/identify`: ora ha fallback ma ancora cattura `Exception` generico; può essere ristretto a `BadRequestError`/`json.JSONDecodeError` per logging più chiaro.
+- Migrare Pydantic `.dict()` → `.model_dump()` (deprecation warning v2).
+
+### P3 — Refactor / Quality
+- Split `server.py` (490 righe, complessità in `identify_plant`) in `routes/`, `services/`, `models/`.
+- Cleanup `frontend/.env`: rimuovere `REACT_APP_AUTO_LOGIN_*` dead vars.
+- Ridurre complessità ciclomatica in `MobileScannerPage` (FileReader doppio).
+
+### P3 — Feature ideas
+- IndexedDB invece di localStorage per pianta-immagini grandi (limite ~5MB).
+- Notifiche push native via Capacitor per promemoria stagionali.
+- Sezione "diario pianta" con foto periodiche e note.
+- Esportazione/backup profilo + piante in JSON (Share Sheet su mobile).
+- Verifica build APK Android effettivo tramite il workflow GitHub.
 
 ## Test Credentials
-- Admin: admin@plantcare.com / admin123 (seeded at startup)
-- User accounts: register via UI o POST /api/auth/register
-
-## Prioritized Backlog
-
-### P1
-- [ ] Password reset via email (Resend integration)
-- [ ] Object storage per immagini piante (no base64 inline)
-- [ ] Notifiche push browser per promemoria stagionali
-- [ ] Estendere catalogo piante (50+)
-
-### P2
-- [ ] OAuth Google login
-- [ ] Multi-language (EN, ES)
-- [ ] Storico identificazioni
-- [ ] Community sharing
-- [ ] Identificazione malattie
-
-### P3
-- [ ] Dark mode
-- [ ] PWA installabile
-- [ ] Export PDF guide cura
+N/A — autenticazione completamente rimossa (app single-user privata).

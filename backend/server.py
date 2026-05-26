@@ -287,7 +287,16 @@ Rispondi SOLO con questo JSON (senza markdown):
             },
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error identifying plant: {str(e)}")
+        # Graceful fallback: never leak raw LLM error text; return documented "non identificata" response.
+        return IdentifyResponse(
+            common_name="Pianta non identificata",
+            scientific_name="",
+            description=f"Non è stato possibile identificare la pianta. Prova con una foto più chiara, ben illuminata e ravvicinata. ({type(e).__name__})",
+            care_guide={"water": "Annaffiare quando il terreno è asciutto", "light": "Luce indiretta",
+                        "fertilizer": "Ogni 2-4 settimane", "temperature": "18-24°C", "tips": ""},
+            confidence="Bassa", pet_friendly=None,
+            suitable_for_user={"score": 5, "reasons": ["Identificazione non riuscita"]},
+        )
 
 
 # ================= PLANTS =================
