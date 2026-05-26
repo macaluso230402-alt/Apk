@@ -58,7 +58,10 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test"
+    "test": "craco test",
+    "cap:sync": "yarn build && npx cap copy android",
+    "cap:open:android": "npx cap open android",
+    "android:build": "yarn build && npx cap copy android && cd android && ./gradlew assembleDebug"
   },
   "browserslist": {
     "production": [
@@ -74,6 +77,9 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@capacitor/android": "7",
+    "@capacitor/cli": "7",
+    "@capacitor/core": "7",
     "@craco/craco": "^7.1.0",
     "@emergentbase/visual-edits": "https://assets.emergent.sh/npm/emergentbase-visual-edits-1.0.8.tgz",
     "@eslint/js": "9.23.0",

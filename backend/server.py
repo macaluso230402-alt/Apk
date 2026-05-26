@@ -27,8 +27,10 @@ ACCESS_TOKEN_MINUTES = 15
 REFRESH_TOKEN_DAYS = 7
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "*")
 
-# CORS — explicit origin needed with credentials
-allowed_origins = [FRONTEND_URL] if FRONTEND_URL != "*" else ["*"]
+# CORS — explicit origins needed with credentials. Includes Capacitor Android WebView origins.
+default_origins = [FRONTEND_URL] if FRONTEND_URL != "*" else ["*"]
+capacitor_origins = ["https://localhost", "capacitor://localhost", "http://localhost"]
+allowed_origins = list({*default_origins, *capacitor_origins})
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,

@@ -86,3 +86,13 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Capacitor / Android build outputs (keep source, exclude generated files)
+frontend/android/build/
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/captures/
+frontend/android/local.properties
+*.apk
+*.aab
+*.keystore
