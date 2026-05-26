@@ -53,8 +53,11 @@ jobs:
         run: chmod +x ./android/gradlew
 
       - name: Build APK (debug)
-        working-directory: frontend/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          cd android
+          gradle wrapper
+          ./gradlew assembleDebug --no-daemon
+
 
       - name: Rename APK
         run: |
