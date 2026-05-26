@@ -14,7 +14,9 @@ export default function MobileHomePage() {
     try {
       const r = await api.get('/api/plant-of-the-week');
       setPotw(r.data);
-    } catch { /* noop */ }
+    } catch (err) {
+      console.error('Failed to load plant of the week:', err);
+    }
   }, []);
 
   useEffect(() => { fetchPotw(); }, [fetchPotw]);

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../lib/api';
 
 const AuthContext = createContext(null);
@@ -11,7 +11,11 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.get('/api/auth/me');
       setUser(data);
-    } catch {
+    } catch (err) {
+      // Not authenticated or session expired — expected on first load.
+      if (err?.response && err.response.status !== 401) {
+        console.error('Auth refresh failed:', err);
+      }
       setUser(false);
     } finally {
       setLoading(false);
@@ -22,36 +26,39 @@ export function AuthProvider({ children }) {
     refresh();
   }, [refresh]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     const { data } = await api.post('/api/auth/login', { email, password });
     setUser(data);
     return data;
-  };
+  }, []);
 
-  const register = async (email, password, name) => {
+  const register = useCallback(async (email, password, name) => {
     const { data } = await api.post('/api/auth/register', { email, password, name });
     setUser(data);
     return data;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await api.post('/api/auth/logout');
-    } catch { /* noop */ }
+    } catch (err) {
+      console.error('Logout request failed:', err);
+    }
     setUser(false);
-  };
+  }, []);
 
-  const updateProfile = async (payload) => {
+  const updateProfile = useCallback(async (payload) => {
     const { data } = await api.put('/api/auth/me', payload);
     setUser(data);
     return data;
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile, refresh }}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({ user, loading, login, register, logout, updateProfile, refresh }),
+    [user, loading, login, register, logout, updateProfile, refresh]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);
