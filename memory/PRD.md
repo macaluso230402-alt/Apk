@@ -1,78 +1,56 @@
 # PlantCare - Product Requirements Document
 
 ## Original Problem Statement
-Applicazione per riconoscere le piante tramite fotocamera con guide personalizzate di cura e manutenzione. Focus su piante da interno con consigli su nuove piante da acquistare, considerando la posizione e la situazione domestica (animali, illuminazione, spazio).
+App per riconoscere le piante via foto, con guide personalizzate di cura, manutenzione e propagazione. Focus piante da interno, consigli su nuove piante da acquistare, considerando posizione e situazione casa (animali, ecc).
 
 ## Architecture
-- **Frontend**: React + Tailwind CSS + shadcn/ui + lucide-react
-- **Backend**: FastAPI + MongoDB (motor async)
-- **AI**: Google Gemini 2.5 Flash (vision) via emergentintegrations library
-- **Routing**: React Router v7
+- **Frontend**: React + Tailwind + shadcn/ui + lucide-react, AuthContext + ProtectedRoute, useIsMobile hook (breakpoint 768px) per switch mobile/desktop
+- **Backend**: FastAPI + MongoDB (motor async), JWT auth con bcrypt, httpOnly cookies (access 15min + refresh 7d), CORS con credentials per FRONTEND_URL
+- **AI**: Google Gemini 2.5 Flash Vision via emergentintegrations (single call: identify + care + propagation + suitability)
 
-## User Personas
-- **Indoor plant enthusiasts**: Vogliono identificare e curare piante da interno
-- **Beginner plant parents**: Cercano guide semplici e personalizzate
-- **Pet owners**: Hanno bisogno di info sicurezza per animali
+## Core Features Implemented
+1. **Auth JWT**: register/login/logout/refresh/me, bcrypt password hash, brute force protection (5 fail = 15min lockout per ip+email)
+2. **Plant Recognition**: Gemini Vision con propagation completa (methods, difficulty, best_season, rooting_time, steps, tips)
+3. **My Plants CRUD**: lista, dettaglio, eliminazione (cascade su reminders)
+4. **Plant Detail Page**: visualizza care + PropagationSection completa
+5. **Recommendations**: catalogo 7 piante + filtri pet-friendly e luce
+6. **Plant of the Week**: rotazione settimanale ISO, filtro automatico pet-safe se utente ha animali
+7. **Reminders**: CRUD + AUTO-CREAZIONE promemoria propagazione quando si salva una pianta nella stagione ideale
+8. **Profile**: nome, città, animali, luce casa, spazio
+9. **Mobile Version Separata**: 7 pagine dedicate con MobileBottomNav (FAB centrale Scanner), header compatto, layout touch-first
+10. **Refactored Components**: PlantCard, PropagationSection, CareGuide condivisi tra mobile e desktop
 
-## Core Requirements (static)
-1. Plant recognition tramite foto upload (camera/file)
-2. Care guides personalizzate basate su contesto utente
-3. Dashboard "Le Mie Piante" con CRUD
-4. Sistema di promemoria per cura piante
-5. Raccomandazioni nuove piante con filtri (pet-friendly, luce)
-6. Profilo utente con localizzazione e situazione casa
-
-## What's Been Implemented (2026-02-26)
-### Backend (`/app/backend/server.py`)
-- `POST /api/identify` - Identificazione pianta con Gemini Vision + guida personalizzata
-- `POST/GET/PUT /api/users` - Profilo utente (uuid4 IDs)
-- `POST/GET/DELETE /api/plants` - CRUD piante salvate
-- `POST/GET/PUT /api/reminders` - Sistema promemoria (PUT con JSON body)
-- `POST /api/recommendations` - Suggerimenti piante con filtri
-
-### Frontend (`/app/frontend/src/pages/`)
-- `HomePage.js` - Landing con hero, features e CTA
-- `ScannerPage.js` - Upload foto + identificazione AI + salvataggio
-- `DashboardPage.js` - Lista piante salvate
-- `PlantDetailPage.js` - Dettaglio singola pianta
-- `RecommendationsPage.js` - Suggerimenti con filtri (shadcn Select)
-- `ProfilePage.js` - Impostazioni utente (posizione, animali, luce)
-- `RemindersPage.js` - Lista promemoria con toggle
-
-### Integrations
-- Google Gemini 2.5 Flash con Vision (chiave utente personale)
-- emergentintegrations library per LLM calls
-
-### Design System
-- Cabinet Grotesk (headings) + Manrope (body)
-- Palette organica: #3E6A4B (primary), #FDFBF7 (bg), #E07A5F (accent)
-- Cards rounded-2xl con soft shadows
-- Glassmorphism header
-- Pill-shaped buttons
+## Implementation Timeline
+- 2026-02-26: MVP iniziale + Plant of the Week
+- 2026-02-26 (iter 2): Code quality fixes (hooks deps, key index, magic numbers, console)
+- 2026-02-26 (iter 3): Propagation feature added
+- 2026-02-26 (iter 4): JWT auth + mobile version + propagation reminders + refactored components
 
 ## Testing Status
-- Backend: 15/15 pytest pass (100%)
-- Frontend: All flows verified working (100%)
-- E2E plant identification verified with real images
+- Backend: 25/25 pytest pass (100%) - cookie auth, all CRUD, propagation reminder, cascade delete, brute force
+- Frontend: 100% desktop + mobile (390px viewport)
+- Design issues: 0 critical (Emergent badge overlap risolto con z-index 50)
+
+## Test Credentials
+- Admin: admin@plantcare.com / admin123 (seeded at startup)
+- User accounts: register via UI o POST /api/auth/register
 
 ## Prioritized Backlog
 
-### P1 - High Priority
-- [ ] Aggiungere data-testid mancanti su elementi HomePage hero
-- [ ] Implementare object storage per image_url (invece di base64 inline)
-- [ ] Splitting di server.py in routers/models/services
-- [ ] Login/auth system (attualmente demo-user hardcoded)
+### P1
+- [ ] Password reset via email (Resend integration)
+- [ ] Object storage per immagini piante (no base64 inline)
+- [ ] Notifiche push browser per promemoria stagionali
+- [ ] Estendere catalogo piante (50+)
 
-### P2 - Medium Priority
-- [ ] Multi-language support (oltre italiano)
-- [ ] Notifiche push browser per promemoria
+### P2
+- [ ] OAuth Google login
+- [ ] Multi-language (EN, ES)
 - [ ] Storico identificazioni
-- [ ] Condivisione piante con community
-- [ ] Calendario integrato per cure
+- [ ] Community sharing
+- [ ] Identificazione malattie
 
-### P3 - Nice to Have
-- [ ] Identificazione malattie pianta
-- [ ] Mappa piante in casa
-- [ ] Export dati piante (PDF/CSV)
+### P3
 - [ ] Dark mode
-- [ ] Statistiche cura piante
+- [ ] PWA installabile
+- [ ] Export PDF guide cura

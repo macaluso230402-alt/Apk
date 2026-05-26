@@ -16,7 +16,7 @@ export default function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-[#E2E8E4] safe-area-bottom"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-[#E2E8E4] safe-area-bottom"
       data-testid="mobile-bottom-nav"
     >
       <div className="flex items-center justify-around h-16 px-2">
