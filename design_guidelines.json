@@ -1,0 +1,163 @@
+{
+  "theme": "light",
+  "archetype": "1_organic_and_earthy",
+  "design_philosophy": {
+    "core_principles": [
+      "Modern and minimal with an organic, natural touch.",
+      "Card-based UI for plants and care schedules with soft shadows.",
+      "High whitespace to create a breathing room, emphasizing the plants.",
+      "Clear, actionable reminders and a scanner-first utility approach."
+    ],
+    "vibe": "Calm, grounded, functional, and deeply connected to nature."
+  },
+  "colors": {
+    "background": {
+      "primary": "#FDFBF7",
+      "secondary": "#F3F5F1",
+      "card": "#FFFFFF",
+      "scanner_overlay": "rgba(0,0,0,0.4)"
+    },
+    "text": {
+      "primary": "#1A2E20",
+      "secondary": "#5C7061",
+      "accent": "#C45B3A",
+      "muted": "#8A9F8E"
+    },
+    "brand": {
+      "primary": "#3E6A4B",
+      "primary_hover": "#2C4C35",
+      "accent_terracotta": "#E07A5F",
+      "accent_sage": "#B5C9B8",
+      "warning": "#E8BA40"
+    },
+    "border": {
+      "default": "#E2E8E4",
+      "focus": "#81A68A"
+    }
+  },
+  "typography": {
+    "font_families": {
+      "heading": "Cabinet Grotesk, sans-serif",
+      "body": "Manrope, sans-serif"
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "h4": "text-lg sm:text-xl",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-secondary",
+      "label": "text-xs uppercase tracking-[0.2em] text-muted"
+    },
+    "rules": [
+      "Headings should use font-medium or font-bold with tight tracking.",
+      "Never use Inter or generic default fonts for headings.",
+      "Body text should be readable and generously spaced."
+    ]
+  },
+  "spacing_and_layout": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "spacing_scale": "p-4, p-6, p-8, p-12, gap-4, gap-6, gap-8",
+    "bento_grid": {
+      "dashboard": "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6",
+      "scanner": "flex flex-col h-full",
+      "plant_profile": "grid-cols-1 lg:grid-cols-12 gap-8"
+    },
+    "alignment": [
+      "Center align hero and empty states.",
+      "Left align plant details, forms, and cards.",
+      "Mobile-first layouts with single column, expanding to multi-column bento grids on desktop."
+    ]
+  },
+  "surface_styles": {
+    "glassmorphism": {
+      "header": "backdrop-blur-xl bg-white/70 border-b border-border/40 sticky top-0 z-50",
+      "scanner_controls": "backdrop-blur-xl bg-black/40 border border-white/20 shadow-lg text-white"
+    },
+    "cards": {
+      "default": "bg-white rounded-2xl border border-border/50 shadow-[0_4px_24px_rgba(62,106,75,0.04)]",
+      "interactive": "hover:-translate-y-1 transition-transform duration-300 hover:shadow-[0_8px_32px_rgba(62,106,75,0.08)]",
+      "active": "border-primary ring-1 ring-primary/20"
+    },
+    "neumorphism_accent": {
+      "stats_widget": "bg-secondary rounded-xl p-4 border border-border/40"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-brand-primary text-white rounded-full px-6 py-3 font-medium hover:bg-brand-primary_hover transition-colors",
+      "secondary": "bg-secondary text-text-primary rounded-full px-6 py-3 font-medium hover:bg-border transition-colors border border-border/50",
+      "scanner": "w-16 h-16 rounded-full border-4 border-white/80 bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/40 transition-all",
+      "icon": "p-2 rounded-full hover:bg-secondary text-text-secondary transition-colors"
+    },
+    "inputs": {
+      "search": "bg-secondary border-none rounded-xl px-4 py-3 text-text-primary placeholder:text-text-muted focus:ring-2 focus:ring-brand-primary/30",
+      "select": "bg-white border border-border rounded-xl px-4 py-3 focus:ring-2 focus:ring-brand-primary/30"
+    },
+    "badges": {
+      "pet_friendly": "bg-[#E6F4EA] text-[#2D6A4F] text-xs font-medium px-3 py-1 rounded-full",
+      "light_need": "bg-[#FFF8E7] text-[#B58500] text-xs font-medium px-3 py-1 rounded-full",
+      "water_due": "bg-[#E8F1F2] text-[#1B6CA8] text-xs font-medium px-3 py-1 rounded-full"
+    },
+    "shadcn_overrides": [
+      "Remove hard borders on standard tabs, use pill-shaped interactive states.",
+      "Cards should have maximum corner radius (rounded-2xl) and subtle ambient shadow."
+    ]
+  },
+  "motion": {
+    "transitions": "transition-all duration-300 ease-in-out",
+    "animations": {
+      "card_enter": "animate-fade-in-up",
+      "scanner_pulse": "animate-pulse"
+    },
+    "rules": [
+      "Hover states for all interactive elements.",
+      "Staggered entrance for My Plants list."
+    ]
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Lightweight, outlined, stroke-width 1.5",
+    "examples": ["Camera (Scanner)", "Droplets (Water)", "Sun (Light)", "Thermometer (Temp)", "Leaf (Plant)"]
+  },
+  "images": {
+    "hero_background": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/fc22e919-67b0-4f8b-81a4-00da1c9ce78d/images/ba1323f69add86122e20bbb5820bb9e748a9f6a6040d642a5b11364f3cd01cdf.png",
+      "description": "Minimalist 3D rendering of indoor plant in terracotta pot. Use for hero or landing background."
+    },
+    "scanner_lifestyle": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/fc22e919-67b0-4f8b-81a4-00da1c9ce78d/images/a1259cd6ef0e134d81826935cd13557270b17df0f3476d4c715c83d8b8bc188e.png",
+      "description": "Person scanning a lush plant with their phone. Use for onboarding or feature highlight."
+    },
+    "plant_collection": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/fc22e919-67b0-4f8b-81a4-00da1c9ce78d/images/5ab278cc4504608db7b7b7a83584ffc1038bdeaadde0a0e09fe6d15dd9b8d84b.png",
+      "description": "Collection of modern indoor plants. Use for empty states, 'My Plants' header, or category headers."
+    },
+    "ui_photo_1": {
+      "url": "https://images.unsplash.com/photo-1777734862460-ffa296caf4ee?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBpbmRvb3IlMjBwb3R0ZWQlMjBwbGFudCUyMGludGVyaW9yfGVufDB8fHx8MTc3OTgwODAxOXww&ixlib=rb-4.1.0&q=85",
+      "description": "Row of potted plants on shelves. Use for recommendations section."
+    },
+    "ui_photo_2": {
+      "url": "https://images.unsplash.com/photo-1522791693784-a90c5b0909e9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBpbmRvb3IlMjBwb3R0ZWQlMjBwbGFudCUyMGludGVyaW9yfGVufDB8fHx8MTc3OTgwODAxOXww&ixlib=rb-4.1.0&q=85",
+      "description": "Green-leafed plant in modern setting. Use for specific plant profile mockups."
+    }
+  },
+  "testing": {
+    "attributes": "All interactive elements MUST include data-testid. Use kebab-case and role-based naming.",
+    "examples": [
+      "data-testid='scan-plant-button'",
+      "data-testid='plant-card-link'",
+      "data-testid='water-reminder-checkbox'"
+    ]
+  },
+  "instructions_to_main_agent": {
+    "general": "Build a modern, minimalistic React app utilizing Tailwind CSS. Do not use generic fonts for headings; stick to Cabinet Grotesk or a similar strong sans.",
+    "features": [
+      "Implement a prominent 'Scan Plant' FAB or hero button.",
+      "Create a 'My Plants' dashboard utilizing the card styling with soft shadows and staggered entrance animations.",
+      "The plant profile must include details like watering schedule, light needs, and a pet-friendly badge.",
+      "Add a 'Recommendations' section with filters for lighting and pets."
+    ],
+    "limitations": "Ensure high contrast for text. Never use pure #000000 for text, use the primary text color (#1A2E20)."
+  }
+}
