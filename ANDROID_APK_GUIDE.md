@@ -1,99 +1,89 @@
-# PlantCare — App Android (APK)
+# PlantCare — Come scaricare l'APK Android
 
-Questa guida spiega come ottenere il file `.apk` per installare PlantCare sul tuo telefono Android.
+Questo container Emergent **non può buildare APK** direttamente (manca Android SDK/Java). La build avviene automaticamente su **GitHub Actions** e ti permette di scaricare l'`.apk` finito.
 
-## 📋 Prerequisiti
+---
 
-1. **Backend deployato e accessibile via HTTPS** (preview URL o deploy permanente)
-2. Account GitHub collegato a Emergent (il codice viene pushato sul repo)
-3. Repository su GitHub con questo codice
+## 🚀 Passi rapidi (3 minuti)
 
-## 🔧 Setup Iniziale (una sola volta)
+### 1. Salva il codice su GitHub
+Dalla chat di Emergent, clicca **"Save to GitHub"** (in alto a destra o nella barra dei comandi). Conferma il push sul tuo repo.
 
-### 1. Configura il segreto del backend URL
+### 2. Aggiungi il secret `REACT_APP_BACKEND_URL`
+Sul repo GitHub:
+1. **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+2. **Name**: `REACT_APP_BACKEND_URL`
+3. **Value**: `https://plant-smart-care.preview.emergentagent.com`
+   *(o il tuo URL di produzione se hai già fatto Deploy)*
+4. **Add secret** ✅
 
-Nel tuo repository GitHub:
+### 3. Lancia la build
+Sul repo GitHub:
+1. Tab **Actions**
+2. Sidebar → **Build Android APK**
+3. Clicca **Run workflow** → branch **main** → **Run workflow** verde
 
-1. Vai su **Settings → Secrets and variables → Actions**
-2. Clicca **New repository secret**
-3. Aggiungi:
-   - **Name:** `REACT_APP_BACKEND_URL`
-   - **Value:** `https://plant-smart-care.preview.emergentagent.com` (o il tuo URL di produzione)
-4. Salva
+Attendi ~5-10 minuti. La spunta verde ✅ significa build OK.
 
-> ⚠️ Senza questo segreto, l'APK non saprà a quale backend connettersi.
+### 4. Scarica l'APK
+1. Clicca sul run completato
+2. Scorri fino in fondo → sezione **Artifacts**
+3. Clicca **PlantCare-debug-apk** → scarica lo zip
+4. Estrai → ottieni **`PlantCare-debug.apk`**
 
-### 2. Aggiorna `FRONTEND_URL` sul backend
+---
 
-Affinché l'app Android possa fare login (cookie cross-site), il backend deve permettere l'origin `https://localhost` (gestito automaticamente da Capacitor) — già configurato in `backend/server.py`. ✅
+## 📱 Installa sul telefono Android
 
-## 🚀 Costruire l'APK
+1. Trasferisci l'`.apk` sul telefono (USB, Google Drive, Telegram a te stesso, email…)
+2. Sul telefono: **Impostazioni → Sicurezza → Installa app sconosciute** → abilita per il file manager che usi
+3. Apri il file `.apk` → tocca **Installa** → **Apri** → trova l'icona **PlantCare** 🌿
 
-### Trigger automatico
-Ogni push al branch `main` che modifica `frontend/**` fa partire il workflow.
+---
 
-### Trigger manuale
-1. Vai sul repository GitHub
-2. Tab **Actions** → **Build Android APK**
-3. Clicca **Run workflow** → scegli branch → **Run workflow**
+## ✨ Cosa include questo APK
 
-### Tempo di build
-~5-10 minuti per il primo build, ~3-5 minuti per i successivi.
+- ✅ Riconoscimento piante via fotocamera (Gemini Vision)
+- ✅ Diario pianta con foto periodiche
+- ✅ Promemoria con **notifiche locali native** (anche con app chiusa)
+- ✅ Funziona **offline** — scansioni e modifiche vengono sincronizzate quando torni online
+- ✅ Profilo personalizzato con animali, posizione, esposizione
 
-## 📥 Scaricare l'APK
+---
 
-1. Una volta che il workflow è completato (badge verde ✅)
-2. Apri il run dalla tab **Actions**
-3. Scorri in fondo, sezione **Artifacts**
-4. Scarica `PlantCare-debug-apk` (file ZIP)
-5. Estrai → otterrai `PlantCare-debug.apk`
+## 🐛 Se la build fallisce
 
-## 📱 Installare l'APK sul Telefono
+1. Apri il run rosso sulla tab **Actions**
+2. Espandi lo step in rosso → leggi le ultime righe del log
+3. Cause comuni:
+   - **Secret mancante** → ricontrolla `REACT_APP_BACKEND_URL`
+   - **yarn.lock disallineato** → fai un re-push da Emergent
+   - **`cap sync` errore** → assicurati che `frontend/android/` sia stato committato
 
-1. **Trasferisci** il file `.apk` sul telefono (USB, Drive, email, Telegram a te stesso, ecc.)
-2. Sul telefono Android:
-   - Vai in **Impostazioni → Sicurezza** (o **App → Accesso speciale**)
-   - Abilita **"Installa da origini sconosciute"** per il browser/file manager che usi
-3. Apri il file `.apk` → tocca **Installa**
-4. Tocca **Apri** o trova l'icona **PlantCare** nel drawer app
+---
 
-## 🐛 Troubleshooting
+## 🔐 APK firmato (release, opzionale)
 
-### "App non installata"
-- Disinstalla versioni precedenti
-- Verifica spazio libero
-- Riprova con un file manager diverso
+L'APK generato è **debug** — perfetto per uso personale.
 
-### App si apre ma non fa login
-- Backend offline o URL sbagliato nel secret → ricontrolla `REACT_APP_BACKEND_URL`
-- CORS non configurato → verifica che `backend/server.py` includa `capacitor://localhost` e `https://localhost` (già fatto ✅)
-- Cookie bloccati → assicurati che il backend usi HTTPS (i cookie `Secure` non funzionano su HTTP)
+Per pubblicare su Play Store servirebbe un APK **release** firmato:
+1. Genera keystore: `keytool -genkey -v -keystore plantcare.keystore -alias plantcare -keyalg RSA -keysize 2048 -validity 10000`
+2. Aggiungi i secret GitHub: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
+3. Modifica il workflow per usare `./gradlew assembleRelease` con signing config
 
-### Build fallisce su GitHub Actions
-- Tab **Actions** → apri il run fallito → leggi il log dello step rosso
-- Cause comuni: `yarn.lock` non sincronizzato, secret mancante, errori in `frontend/build`
+*(Non necessario per uso privato.)*
 
-## 🔐 Build di Produzione (Firmato)
+---
 
-Il workflow attuale genera un APK **debug** (sufficiente per uso privato).
+## 🛠️ Build locale alternativa (con Android Studio)
 
-Per generare un APK **release** firmato (necessario se vuoi pubblicare in futuro):
-1. Crea un keystore: `keytool -genkey -v -keystore plantcare-release.keystore -alias plantcare -keyalg RSA -keysize 2048 -validity 10000`
-2. Aggiungi i secret in GitHub: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
-3. Modifica il workflow per usare `assembleRelease` con signing config
-
-(per uso privato puoi ignorare questa sezione)
-
-## 📦 Build Locale (Alternativa)
-
-Se hai **Android Studio** installato sul tuo computer:
-
+Se hai Android Studio sul tuo PC:
 ```bash
 cd frontend
 yarn install
 yarn build
-npx cap copy android
+npx cap sync android
 npx cap open android   # apre Android Studio
 ```
-
-Poi in Android Studio: **Build → Build Bundle(s)/APK(s) → Build APK(s)**.
+Poi in Android Studio: **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
+L'APK sarà in `frontend/android/app/build/outputs/apk/debug/`.

@@ -41,8 +41,6 @@ jobs:
       - name: Create production .env
         run: |
           echo "REACT_APP_BACKEND_URL=${{ secrets.REACT_APP_BACKEND_URL }}" > .env
-          echo "REACT_APP_AUTO_LOGIN_EMAIL=${{ secrets.REACT_APP_AUTO_LOGIN_EMAIL }}" >> .env
-          echo "REACT_APP_AUTO_LOGIN_PASSWORD=${{ secrets.REACT_APP_AUTO_LOGIN_PASSWORD }}" >> .env
           echo "WDS_SOCKET_PORT=443" >> .env
 
       - name: Build React app
@@ -50,8 +48,8 @@ jobs:
           CI: false
         run: yarn build
 
-      - name: Sync Capacitor
-        run: npx cap copy android
+      - name: Sync Capacitor (copies web build + installs native plugins)
+        run: npx cap sync android
 
       - name: Make gradlew executable
         run: chmod +x ./android/gradlew
