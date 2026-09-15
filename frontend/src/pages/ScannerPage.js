@@ -51,7 +51,8 @@ function ScannerPage() {
 
     setLoading(true);
     try {
-      const base64Image = await readBase64();
+      // Cambia l'URL sostituendo gemini-1.5-flash con gemini-2.5-flash:
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {;
       
       // Chiamata diretta alle API gratuite di Google Gemini Vision
       const geminiApiKey = "AIzaSyAbhD2yLdAO4bT-SWJX5L11HYtWGiZGsIw"; 
